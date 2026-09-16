@@ -12,12 +12,12 @@ The foundation (Milestone 1) is complete. Everything in this section is real cod
 
 | Area | Files | State |
 |---|---|---|
-| Configuration | `src/lib/env.ts` (+ `env.test.ts`) | Zod-validated. `getServerEnv()` parses `process.env` once and throws on anything missing; `publicEnv` returns safe defaults and never throws. This is the only module that reads `process.env`. |
+| Configuration | `src/lib/env.ts` (+ `env.test.ts`) | Zod-validated. `getServerEnv()` parses the full server schema and throws on anything missing; `getPublicEnv()` does the same for the three `NEXT_PUBLIC_*` values the Supabase clients depend on, and is what every live path calls. `publicEnv` is the non-throwing accessor, used where a missing value must not be fatal — the sign-in redirect URL, and the proxy's credential check. This is the only module that reads `process.env`. |
 | Supabase clients | `src/lib/supabase/browser.ts`, `server.ts`, `admin.ts` | Three clients. `browser` and `server` use the anon key; `admin` uses the service role and carries `import 'server-only'` so an accidental client import fails the build. |
 | Schema | `supabase/migrations/0001_profiles.sql` | One table, `public.profiles`, RLS enabled, three own-row policies, a `handle_new_user()` signup trigger and a `touch_updated_at()` trigger. |
 | Generated types | `src/lib/types/database.ts` | **Placeholder, hand-written.** There is no live Supabase project yet, so `supabase gen types` cannot run. Shaped to match real codegen output so it drops in. |
 | Auth | `src/app/(auth)/login/page.tsx`, `src/app/auth/callback/route.ts`, `src/app/auth/signout/route.ts`, `src/lib/auth/safe-next.ts` | Magic link + Google. The callback validates its redirect target through `safeNext()` (tested) so `?next=` cannot be used as an open redirect. |
-| Session | `src/middleware.ts` | Refreshes the Supabase session on every matched request. It does **not** guard routes. |
+| Session | `src/proxy.ts` | Refreshes the Supabase session on every matched request when credentials are configured, and bails out untouched when they are not. It does **not** guard routes. Next.js 16 renamed this file convention from `middleware` to `proxy`. |
 | Shell | `src/app/(app)/layout.tsx`, `src/components/app-nav.tsx`, `src/app/(app)/dashboard/page.tsx` | The session guard lives in the `(app)` layout: no user, redirect to `/login`. The dashboard renders the three bands as empty states. |
 | Design system | `src/app/globals.css`, `src/components/ui/*` | See `docs/DESIGN-SYSTEM.md`. |
 
@@ -190,7 +190,7 @@ Core tables, all with RLS keyed to `auth.uid()`. Only `profiles` exists today; t
 
 | Table | Purpose |
 |---|---|
-| `users` | Supabase Auth mirror, timezone, onboarding state (today: `profiles`) |
+| `profiles` | Supabase Auth mirror, timezone, onboarding state. The only table that exists today. |
 | `business_profiles` | Offer, ICP, transformation, proof, POV, taboos, CTA target |
 | `voice_profiles` | Structured voice fields, user-edited |
 | `writing_samples` | Pasted posts, with derived format metadata for exemplar matching |
@@ -217,7 +217,7 @@ One migration file per change, in `supabase/migrations/`, numbered. Never edit a
 
 ## Request flow, as built today
 
-1. A request hits `src/middleware.ts`, which refreshes the Supabase session cookie. It does not authorise anything.
-2. If the path is under `(app)`, `src/app/(app)/layout.tsx` calls `supabase.auth.getUser()` and redirects to `/login` when there is no user. **This is where route protection lives** — adding an authenticated route means putting it inside the `(app)` group, not adding a matcher to the middleware.
+1. A request hits `src/proxy.ts` (the Next.js 16 name for what used to be `middleware.ts`), which refreshes the Supabase session cookie. It does not authorise anything. With no Supabase credentials configured it returns immediately, so the public pages render on a fresh clone.
+2. If the path is under `(app)`, `src/app/(app)/layout.tsx` calls `supabase.auth.getUser()` and redirects to `/login` when there is no user. **This is where route protection lives** — adding an authenticated route means putting it inside the `(app)` group, not adding a matcher to the proxy.
 3. Server components use `await createServerClient()`. Route handlers and cron workers that must bypass RLS use `createAdminClient()`, which is `server-only`.
 4. RLS is the real authorisation boundary. A missing `where user_id = ...` should be a redundancy, not the only thing standing between two customers' data.

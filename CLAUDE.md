@@ -46,12 +46,12 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 | `src/app/auth/signout/route.ts` | `POST` only, 303 to `/login` |
 | `src/app/(app)/layout.tsx` | Authenticated shell + session guard (redirects to `/login`) |
 | `src/app/(app)/dashboard/page.tsx` | Three-band dashboard skeleton |
-| `src/lib/env.ts` | The only place `process.env` is read. `getServerEnv()` throws; `publicEnv` does not. |
+| `src/lib/env.ts` | The only place `process.env` is read. `getServerEnv()` and `getPublicEnv()` throw naming the missing variable; `publicEnv` does not. |
 | `src/lib/supabase/{browser,server,admin}.ts` | Supabase clients. `admin.ts` is `server-only` — never import it from a component. |
 | `src/lib/types/database.ts` | **Placeholder types.** Regenerate with `supabase gen types` once a project exists. |
 | `src/lib/auth/safe-next.ts` | Same-origin redirect validation. Tested. |
 | `src/components/ui/*` | shadcn primitives (Base UI) |
-| `src/middleware.ts` | Session refresh only — it does **not** guard routes |
+| `src/proxy.ts` | Session refresh only — it does **not** guard routes. The `proxy` file convention replaced `middleware` in Next.js 16. |
 | `supabase/migrations/*.sql` | Schema and RLS, one file per change |
 | `docs/` | Architecture, design system, compliance, accounts, roadmap |
 
@@ -61,7 +61,7 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 
 `npm run verify` = `typecheck && lint && test && build`. **It must pass before any commit.** Not "usually", not "unless the change is docs-only". If it fails, fix the cause; do not weaken a lint rule, add `// @ts-expect-error`, or set `ignoreBuildErrors` to get past it.
 
-The app builds with no Supabase credentials present and must keep doing so — that is why `getServerEnv()` is only ever called inside function bodies, never at module scope. Do not move an env read to module scope.
+The app builds with no Supabase credentials present and must keep doing so — that is why `getServerEnv()` and `getPublicEnv()` are only ever called inside function bodies, never at module scope. Do not move an env read to module scope.
 
 ## When TDD is mandatory
 
@@ -103,4 +103,4 @@ Do not do any of these unilaterally. Stop, explain the options, and wait:
 ## Two things that have already tripped an implementer
 
 - `Button` is Base UI-backed and has **no `asChild` prop**. To render a link: `<Button render={<Link href="/login" />}>Get started</Button>`.
-- `src/middleware.ts` refreshes the session; it does not protect routes. Route protection lives in `(app)/layout.tsx`.
+- `src/proxy.ts` refreshes the session; it does not protect routes. Route protection lives in `(app)/layout.tsx`. (Next.js 16 renamed the `middleware` file convention to `proxy`; anything you read that says `middleware.ts` means this file.)

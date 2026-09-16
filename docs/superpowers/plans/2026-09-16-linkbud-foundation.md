@@ -4,9 +4,9 @@
 
 **Goal:** Stand up a running, deployable LinkBud app — scaffold, design system, validated configuration, Supabase data layer with RLS, working auth, app shell, project documentation and Claude Code tooling — so every later milestone starts from a green build instead of an empty folder.
 
-**Architecture:** A single Next.js 15 App Router application in TypeScript. Supabase provides Postgres, Auth and row-level security; the app talks to it through three explicit clients (browser, server-component, admin) so the service-role key can never leak into a client bundle. All configuration is parsed and validated once at startup through a single `env` module, so a missing key fails loudly at boot rather than silently at 2am in a cron worker. The design system is expressed as CSS custom properties consumed by Tailwind v4's `@theme`, giving one place to change the entire visual language.
+**Architecture:** A single Next.js 16 App Router application in TypeScript. Supabase provides Postgres, Auth and row-level security; the app talks to it through three explicit clients (browser, server-component, admin) so the service-role key can never leak into a client bundle. All configuration is parsed and validated once at startup through a single `env` module, so a missing key fails loudly at boot rather than silently at 2am in a cron worker. The design system is expressed as CSS custom properties consumed by Tailwind v4's `@theme`, giving one place to change the entire visual language.
 
-**Tech Stack:** Next.js 15 (App Router), React 19, TypeScript (strict), Tailwind CSS v4, shadcn/ui, Supabase (`@supabase/ssr`), Zod, Vitest, Vercel.
+**Tech Stack:** Next.js 16 (App Router), React 19, TypeScript (strict), Tailwind CSS v4, shadcn/ui, Supabase (`@supabase/ssr`), Zod, Vitest, Vercel.
 
 **Spec:** [`docs/superpowers/specs/2026-09-16-linkbud-design.md`](../specs/2026-09-16-linkbud-design.md)
 

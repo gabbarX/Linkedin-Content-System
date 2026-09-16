@@ -25,7 +25,14 @@ npm run dev
 
 Open http://localhost:3000.
 
-**It builds and runs with no credentials at all.** The landing page renders and `npm run verify` passes on a clean checkout. What you cannot do without credentials is sign in — `/login` will send a magic link request into the void, because there is no Supabase project behind it.
+**It builds and runs with no credentials at all.** `npm run verify` passes on a clean
+checkout, and the public pages render: the landing page at `/` and the sign-in form at
+`/login`. The session-refresh proxy detects the missing credentials and steps aside
+rather than constructing a Supabase client it cannot construct.
+
+What requires credentials is **signing in**. With no Supabase project configured, asking
+for a magic link or pressing "Continue with Google" fails immediately with a message
+naming the environment variable that is missing — it does not silently do nothing.
 
 ## What you need in `.env.local` before sign-in works
 
@@ -78,6 +85,7 @@ npm run build        # next build
 | [`docs/LINKEDIN-COMPLIANCE.md`](docs/LINKEDIN-COMPLIANCE.md) | The hard constraints, with their sources, and the tempting things that are forbidden |
 | [`docs/ACCOUNTS.md`](docs/ACCOUNTS.md) | Milestone 0 — every account to open, in order, with the CMA application text |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones 2–10 and what is blocked on LinkedIn approval |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Deferred items from the foundation, each with the trigger that ends the deferral |
 | [`docs/superpowers/specs/2026-09-16-linkbud-design.md`](docs/superpowers/specs/2026-09-16-linkbud-design.md) | The approved product spec. Binding authority for everything above. |
 
 ## Layout
@@ -93,6 +101,6 @@ src/
   lib/
     env.ts            the only place process.env is read
     supabase/         browser, server and admin clients
-  middleware.ts       session refresh (not route protection)
+  proxy.ts            session refresh (not route protection)
 supabase/migrations/  schema and RLS, one file per change
 ```
