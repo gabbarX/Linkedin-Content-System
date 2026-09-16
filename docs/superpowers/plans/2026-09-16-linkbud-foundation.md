@@ -50,7 +50,7 @@ Every task's requirements implicitly include this section. Values are copied ver
 | `src/lib/types/database.ts` | Generated Supabase types |
 | `src/components/ui/*` | shadcn primitives |
 | `src/components/app-nav.tsx` | Authenticated navigation |
-| `src/middleware.ts` | Session refresh on every request |
+| `src/proxy.ts` | Session refresh on every request (Next 16 `proxy` convention; the `middleware` convention is deprecated) |
 | `supabase/migrations/*.sql` | Schema and RLS, one file per change |
 | `docs/CLAUDE.md` → `CLAUDE.md` | Working agreement for Claude |
 | `docs/ARCHITECTURE.md` | Module map and interfaces |
@@ -554,7 +554,7 @@ export async function createServerClient() {
           }
         } catch {
           // Called from a Server Component, where cookies are read-only.
-          // middleware.ts refreshes the session, so this is safe to ignore.
+          // src/proxy.ts refreshes the session, so this is safe to ignore.
         }
       },
     },
@@ -701,7 +701,7 @@ git commit -m "feat: supabase clients and profiles table with RLS"
 
 **Files:**
 - Create: `src/app/(auth)/login/page.tsx`, `src/app/auth/callback/route.ts`, `src/app/auth/signout/route.ts`
-- Create: `src/middleware.ts`
+- Create: `src/proxy.ts`
 
 **Interfaces:**
 - Consumes: `createBrowserClient`, `createServerClient` (Task 4), `publicEnv` (Task 2)
@@ -709,15 +709,15 @@ git commit -m "feat: supabase clients and profiles table with RLS"
 
 LinkedIn is deliberately **not** an auth provider here. See spec §3.1: a revoked LinkedIn grant must never lock a paying customer out of their own drafts.
 
-- [ ] **Step 1: Session-refresh middleware**
+- [ ] **Step 1: Session-refresh proxy**
 
-Create `src/middleware.ts` (NOT the repo root — with a `src/` directory Next.js resolves middleware at `src/middleware.ts`, and a root file is silently ignored):
+Create `src/proxy.ts` (NOT the repo root, and NOT `middleware.ts` — Next 16 deprecates the `middleware` file convention in favour of `proxy`, and with a `src/` directory the file resolves at `src/proxy.ts`):
 
 ```ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -742,6 +742,8 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refreshes the auth token. Required — do not remove.
+  // Bail out before this if configuration is missing, or a misconfigured
+  // deploy 500s on every route including the public landing page.
   await supabase.auth.getUser()
 
   return response
