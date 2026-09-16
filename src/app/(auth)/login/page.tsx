@@ -9,14 +9,25 @@ import { createBrowserClient } from '@/lib/supabase/browser'
 import { publicEnv } from '@/lib/env'
 
 /**
- * The two codes src/app/auth/callback/route.ts can redirect here with.
- * Anything else in ?error= is ignored rather than echoed back to the page.
+ * The codes the two auth routes can redirect here with -- /auth/confirm for
+ * emailed links, /auth/callback for the Google OAuth return. Anything else in
+ * ?error= is ignored rather than echoed back to the page.
+ *
+ * `link_expired` and `invalid_link` are deliberately different messages:
+ * an expired link is the user's problem to solve by requesting another, while a
+ * malformed one means our email template is wrong and no amount of retrying
+ * will help. Telling someone to request a new link when the template is broken
+ * wastes their time and hides the real fault.
  */
 const CALLBACK_ERRORS: Record<string, string> = {
   missing_code:
     'That sign-in link has expired or has already been used. Request a new one below.',
   exchange_failed:
     'We could not complete that sign-in. Request a new link below.',
+  link_expired:
+    'That link has expired or has already been used. Request a new one below.',
+  invalid_link:
+    "That sign-in link wasn't readable. Request a new one below -- if it keeps happening, the fault is ours, not yours.",
 }
 
 /** Shown to the visitor in place of the raw error thrown by getPublicEnv() —
@@ -156,17 +167,6 @@ export default function LoginPage() {
         {busy ? 'Redirecting…' : 'Continue with Google'}
       </Button>
 
-      {/* Scaffolding while the magic link is broken. Next inlines NODE_ENV at
-          build time, so this block is not merely hidden in production -- it is
-          absent from the bundle, and the route behind it 404s there anyway. */}
-      {process.env.NODE_ENV === 'development' && (
-        <a
-          href="/auth/dev-login"
-          className="mt-8 text-center text-sm text-[var(--color-text-muted)] underline underline-offset-4 hover:text-[var(--color-text)]"
-        >
-          Dev sign-in (local only)
-        </a>
-      )}
     </main>
   )
 }
