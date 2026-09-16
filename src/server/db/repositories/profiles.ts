@@ -1,5 +1,6 @@
 import 'server-only'
 import { Prisma } from '@prisma/client'
+import { ONBOARDING_STEPS, type OnboardingStep } from '@/lib/onboarding/steps'
 import { getPrisma } from '../client'
 
 /**
@@ -18,16 +19,13 @@ import { getPrisma } from '../client'
  * runtime database error.
  */
 
-export const ONBOARDING_STEPS = [
-  'interview',
-  'samples',
-  'voice',
-  'strategy',
-  'paywall',
-  'done',
-] as const
-
-export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
+// Ruling R9: the step vocabulary is domain knowledge, not data access, so it
+// is declared in src/lib/onboarding/steps.ts (which must stay free of
+// `server-only` imports — Tasks 7-9 build a wizard that needs it from
+// Client Components) and re-exported here so existing import sites
+// (`@/server/db/repositories/profiles`) keep working unchanged.
+export { ONBOARDING_STEPS }
+export type { OnboardingStep }
 
 /** Spec: 3, 4 or 5 posts per week. Daily posting is deliberately not offered. */
 export type CadencePerWeek = 3 | 4 | 5

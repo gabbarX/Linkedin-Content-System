@@ -1,4 +1,42 @@
-import { ONBOARDING_STEPS, type OnboardingStep } from '@/server/db/repositories/profiles'
+/**
+ * The onboarding step vocabulary and state machine.
+ *
+ * `ONBOARDING_STEPS` and `OnboardingStep` live here rather than in
+ * `src/server/db/repositories/profiles.ts` (which re-exports them for
+ * existing import sites) per Ruling R9: they are domain knowledge — the
+ * fixed order onboarding proceeds through — not data access. That
+ * repository module is marked `server-only`; this one must not be, because
+ * Tasks 7-9 build the onboarding wizard, and the moment a Client Component
+ * imports this file — directly or transitively — a `server-only` import
+ * anywhere in its dependency chain fails the build with an error pointing
+ * at the wrong file. (Same reasoning as `CadencePerWeek` in
+ * `src/lib/onboarding/questions.ts`.) This file must therefore import
+ * nothing from `@/server/db/**`.
+ */
+export const ONBOARDING_STEPS = [
+  'interview',
+  'samples',
+  'voice',
+  'strategy',
+  'paywall',
+  'done',
+] as const
+
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
+
+/**
+ * The onboarding page for a step, for the steps that have one in this
+ * milestone. The single source both `routeForStep` and `onboardingRouteFor`
+ * read from — see their doc comments for why two functions exist over one
+ * map. Add a step's page here once Milestones 3+ build it, and both
+ * functions (and the wizard, and the guard) pick it up together; there is
+ * nowhere else a page path is written down.
+ */
+const PAGE_ROUTE_BY_STEP: Partial<Record<OnboardingStep, string>> = {
+  interview: '/onboarding/interview',
+  samples: '/onboarding/samples',
+  voice: '/onboarding/voice',
+}
 
 /**
  * The onboarding state machine — where each step routes to, and what comes
@@ -23,6 +61,11 @@ import { ONBOARDING_STEPS, type OnboardingStep } from '@/server/db/repositories/
  *   onward" question and wrong for the guard's "should I redirect at all"
  *   question.
  *
+ * Both are defined in terms of `PAGE_ROUTE_BY_STEP` rather than each
+ * hardcoding the three onboarding paths in its own switch: a step's page
+ * path is written down exactly once, so the wizard and the guard cannot
+ * drift apart by one of two copies being updated and the other forgotten.
+ *
  * Ruling R3: `routeForStep('strategy' | 'paywall')` is `/dashboard` because
  * Milestones 3 and 4 own those steps and have not built pages yet. Routing a
  * user at either step to a route that 404s is worse than routing them to the
@@ -33,21 +76,7 @@ import { ONBOARDING_STEPS, type OnboardingStep } from '@/server/db/repositories/
  * or voice steps can never reach the dashboard.
  */
 export function routeForStep(step: OnboardingStep): string {
-  switch (step) {
-    case 'interview':
-      return '/onboarding/interview'
-    case 'samples':
-      return '/onboarding/samples'
-    case 'voice':
-      return '/onboarding/voice'
-    case 'strategy':
-    case 'paywall':
-      // No page exists yet — see the ruling above. Update this once
-      // Milestones 3 and 4 ship /onboarding/strategy and /onboarding/paywall.
-      return '/dashboard'
-    case 'done':
-      return '/dashboard'
-  }
+  return PAGE_ROUTE_BY_STEP[step] ?? '/dashboard'
 }
 
 /**
@@ -66,18 +95,7 @@ export function routeForStep(step: OnboardingStep): string {
  * rejected approach (Ruling R8).
  */
 export function onboardingRouteFor(step: OnboardingStep): string | null {
-  switch (step) {
-    case 'interview':
-      return '/onboarding/interview'
-    case 'samples':
-      return '/onboarding/samples'
-    case 'voice':
-      return '/onboarding/voice'
-    case 'strategy':
-    case 'paywall':
-    case 'done':
-      return null
-  }
+  return PAGE_ROUTE_BY_STEP[step] ?? null
 }
 
 /**

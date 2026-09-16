@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ONBOARDING_STEPS } from '@/server/db/repositories/profiles'
-import { isComplete, nextStep, onboardingRouteFor, routeForStep } from './steps'
+import { ONBOARDING_STEPS, isComplete, nextStep, onboardingRouteFor, routeForStep } from './steps'
 
 describe('routeForStep', () => {
   it('routes each step this milestone builds a page for to that page', () => {
@@ -88,6 +87,21 @@ describe('onboardingRouteFor', () => {
     for (const step of ONBOARDING_STEPS) {
       if (stepsWithNoPageYet.has(step)) continue
       expect(onboardingRouteFor(step)).toBeTruthy()
+    }
+  })
+
+  // The drift this whole file exists to rule out: both functions now read
+  // from one shared map (PAGE_ROUTE_BY_STEP), but that's an implementation
+  // detail this test doesn't rely on — it re-derives the guarantee from the
+  // public API instead, so it would still catch the two functions being
+  // hand-desynced even if that map disappeared tomorrow. Whenever there is
+  // an onboarding page to force a step onto, it must be the same page
+  // routeForStep would have sent that step to anyway.
+  it('agrees with routeForStep for every step it names a page for', () => {
+    for (const step of ONBOARDING_STEPS) {
+      const forced = onboardingRouteFor(step)
+      if (forced === null) continue
+      expect(forced).toBe(routeForStep(step))
     }
   })
 })
