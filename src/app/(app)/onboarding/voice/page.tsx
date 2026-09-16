@@ -10,8 +10,9 @@ import {
   SENTENCE_RHYTHM_OPTIONS,
   type VoiceFormValues,
 } from '@/lib/onboarding/voice-edit'
-import { routeForStep } from '@/lib/onboarding/steps'
+import { isPastStep, routeForStep } from '@/lib/onboarding/steps'
 import { createServerClient } from '@/lib/supabase/server'
+import { getOnboardingStep } from '@/server/db/repositories/profiles'
 import { getVoiceProfile } from '@/server/db/repositories/voice-profiles'
 import { continueFromVoice, saveVoice } from './actions'
 
@@ -28,6 +29,17 @@ export default async function VoicePage() {
   // the same defensive re-check the samples and interview pages make, and
   // this page needs user.id regardless to load the profile.
   if (!user) redirect('/login')
+
+  // I1a: a user who has already finished the voice step must not be able
+  // to re-enter it and overwrite their own reviewed profile. This step has
+  // no re-derivation control of its own to worry about the way samples
+  // does, but the same reentry hole exists here in principle, and closing
+  // it uniformly on all three onboarding pages is what makes it a rule
+  // rather than a fix for one screen.
+  const currentStep = await getOnboardingStep(user.id)
+  if (currentStep && isPastStep(currentStep, 'voice')) {
+    redirect(routeForStep(currentStep))
+  }
 
   const profile = await getVoiceProfile(user.id)
 

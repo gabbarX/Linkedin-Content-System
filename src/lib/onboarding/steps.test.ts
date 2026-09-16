@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { ONBOARDING_STEPS, isComplete, nextStep, onboardingRouteFor, routeForStep } from './steps'
+import {
+  ONBOARDING_STEPS,
+  isComplete,
+  isPastStep,
+  nextStep,
+  onboardingRouteFor,
+  routeForStep,
+} from './steps'
 
 describe('routeForStep', () => {
   it('routes each step this milestone builds a page for to that page', () => {
@@ -103,5 +110,43 @@ describe('onboardingRouteFor', () => {
       if (forced === null) continue
       expect(forced).toBe(routeForStep(step))
     }
+  })
+})
+
+describe('isPastStep', () => {
+  // Covers every step pair, not just the three the onboarding pages guard,
+  // because the function itself makes no exception for the later steps --
+  // it just compares indices.
+  it('agrees with comparing ONBOARDING_STEPS indices, for every step pair', () => {
+    for (const current of ONBOARDING_STEPS) {
+      for (const page of ONBOARDING_STEPS) {
+        const expected = ONBOARDING_STEPS.indexOf(current) > ONBOARDING_STEPS.indexOf(page)
+        expect(isPastStep(current, page)).toBe(expected)
+      }
+    }
+  })
+
+  it('is false when the user is exactly at the page step -- must not block first entry', () => {
+    for (const step of ONBOARDING_STEPS) {
+      expect(isPastStep(step, step)).toBe(false)
+    }
+  })
+
+  it('is false when the user has not reached the page step yet', () => {
+    expect(isPastStep('interview', 'samples')).toBe(false)
+    expect(isPastStep('interview', 'voice')).toBe(false)
+  })
+
+  // The exact reentry bug this helper exists to fix: a user who finished
+  // the samples step (and is now at voice, possibly with an edited Voice
+  // Profile) hits Back to /onboarding/samples.
+  it('is true for the samples-page reentry bug: a user now at voice', () => {
+    expect(isPastStep('voice', 'samples')).toBe(true)
+  })
+
+  it('is true once onboarding has moved on to strategy, paywall or done', () => {
+    expect(isPastStep('strategy', 'voice')).toBe(true)
+    expect(isPastStep('paywall', 'voice')).toBe(true)
+    expect(isPastStep('done', 'voice')).toBe(true)
   })
 })

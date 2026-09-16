@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { SampleList } from '@/components/onboarding/sample-list'
+import { isPastStep, routeForStep } from '@/lib/onboarding/steps'
 import { createServerClient } from '@/lib/supabase/server'
+import { getOnboardingStep } from '@/server/db/repositories/profiles'
 import { listWritingSamples } from '@/server/db/repositories/writing-samples'
 import { retryDerivation, startOver, submitSamples } from './actions'
 
@@ -23,6 +25,18 @@ export default async function SamplesPage() {
   // the same defensive re-check the interview page makes, and this page
   // needs user.id regardless to load any existing samples.
   if (!user) redirect('/login')
+
+  // I1a: a user who has already finished the samples step must not be able
+  // to re-enter it. Writing samples are never deleted on success, so
+  // without this a finished user hitting Back would find `SampleList`
+  // rendered in retry mode -- "Derive my voice profile" -- one tap away
+  // from silently overwriting whatever they later edited on the voice
+  // step. See `saveDerivedVoiceProfile`'s own refusal (I1b) for the second
+  // half of this fix.
+  const currentStep = await getOnboardingStep(user.id)
+  if (currentStep && isPastStep(currentStep, 'samples')) {
+    redirect(routeForStep(currentStep))
+  }
 
   const existing = await listWritingSamples(user.id)
 

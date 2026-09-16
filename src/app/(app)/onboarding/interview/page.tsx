@@ -3,8 +3,9 @@ import { ProgressDots } from '@/components/onboarding/progress-dots'
 import { QuestionCard } from '@/components/onboarding/question-card'
 import { resumeIndexFromDraft } from '@/lib/onboarding/interview-draft'
 import { INTERVIEW_QUESTIONS, questionAt } from '@/lib/onboarding/questions'
+import { isPastStep, routeForStep } from '@/lib/onboarding/steps'
 import { createServerClient } from '@/lib/supabase/server'
-import { getInterviewDraft } from '@/server/db/repositories/profiles'
+import { getInterviewDraft, getOnboardingStep } from '@/server/db/repositories/profiles'
 import { saveAnswer } from './actions'
 
 type InterviewPageProps = {
@@ -32,6 +33,17 @@ export default async function InterviewPage({ searchParams }: InterviewPageProps
   // the same defensive re-check (app)/(onboarded)/layout.tsx makes, and this
   // page needs user.id regardless to load the draft.
   if (!user) redirect('/login')
+
+  // I1a: a user who has already finished the interview step must not be
+  // able to re-enter it (e.g. the Back button after finishing). Nothing
+  // else stops that -- (app)/(onboarded)/layout.tsx only guards an
+  // *unfinished* user reaching the dashboard, and this route sits outside
+  // that route group entirely (see onboarding/layout.tsx). Send them
+  // forward to wherever they actually are instead.
+  const currentStep = await getOnboardingStep(user.id)
+  if (currentStep && isPastStep(currentStep, 'interview')) {
+    redirect(routeForStep(currentStep))
+  }
 
   const draft = (await getInterviewDraft(user.id)) ?? {}
   const { q, invalid } = await searchParams

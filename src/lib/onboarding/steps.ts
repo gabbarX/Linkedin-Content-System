@@ -113,3 +113,28 @@ export function nextStep(current: OnboardingStep): OnboardingStep {
 export function isComplete(step: OnboardingStep): boolean {
   return step === 'done'
 }
+
+/**
+ * Whether a user whose actual onboarding step is `current` has already
+ * moved past `page` -- the step a given onboarding page renders.
+ *
+ * Each of `interview/page.tsx`, `samples/page.tsx` and `voice/page.tsx`
+ * calls this with its own step as `page` and redirects to
+ * `routeForStep(current)` when it is true (I1a). Without this, nothing
+ * stopped a user who had already finished a step from reaching that step's
+ * page again -- the browser's Back button is enough, since writing samples
+ * and a derived Voice Profile are never deleted on success. From there,
+ * re-running the samples step's derivation would silently overwrite a
+ * human's edited Voice Profile (see `saveDerivedVoiceProfile`'s own
+ * refusal, I1b, for the second half of that fix) and knock the user's
+ * `onboarding_step` back a step.
+ *
+ * Compares indices in `ONBOARDING_STEPS` rather than a hand-written
+ * ordering declared a third time. `current === page` (a user legitimately
+ * on the page for their own current step) is deliberately `false`, not
+ * `true` -- equal indices are never `>` -- so this only ever blocks
+ * re-entry, never first entry.
+ */
+export function isPastStep(current: OnboardingStep, page: OnboardingStep): boolean {
+  return ONBOARDING_STEPS.indexOf(current) > ONBOARDING_STEPS.indexOf(page)
+}
