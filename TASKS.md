@@ -153,7 +153,10 @@ question per screen.
 - [x] Derive the **Voice Profile** (sentence rhythm, openers, line breaks, vocabulary, emoji/hashtag policy, banned phrases) —
       wired end to end for the first time via `/onboarding/samples`:
       `deriveVoiceProfile` → `saveDerivedVoiceProfile` → `onboarding_step = 'voice'`.
-- [ ] Derive the **Business Profile**
+- [x] **Business Profile** populated — unlike Voice Profile, this is not LLM-derived:
+      offer, ICP, transformation, proof, POV, taboos and CTA target are the interview's
+      own literal answers, written straight to `business_profiles` on the interview's
+      final advance (see the guided-interview bullet above).
 - [x] **Voice Profile** editable — `/onboarding/voice`. Seven judged fields as selects (options
       built from the repository's own const tuples, never retyped, with a human label and a
       one-line explanation per option — the raw enum value is never shown); four array fields
@@ -163,8 +166,26 @@ question per screen.
       screen and confirming is itself the human review); "Continue" saves and then advances via
       `nextStep('voice')` → `'strategy'` (Ruling R11: not the plan's original `'done'` — the
       spec's own state machine has `strategy` and `paywall` as real steps still to come).
-      Business Profile editing is Task 10, under `/settings`.
-- [ ] Onboarding state machine across the `profiles.onboarding_step` values
+- [x] **Business Profile** editable — `/settings/business` (Task 10). One page, every
+      field at once rather than a wizard, since reviewing an existing profile is a
+      different act from being interviewed for the first time. Fields, labels, helper
+      text and validation all come from `INTERVIEW_QUESTIONS` via a new
+      `BUSINESS_PROFILE_QUESTIONS` subset (Ruling R5) — nothing is redeclared, so the
+      wizard and this form cannot drift apart. Deliberately does not edit
+      `cadencePerWeek`/`preferredPostTime`/`timezone` (those persist to `profiles`, a
+      different settings concern). A user with no `business_profiles` row yet (interview
+      unfinished) gets a blank form rather than a redirect — saving upserts, creating the
+      row on first save. Also adds a minimal `/settings` index (Ruling R12): `app-nav.tsx`
+      has linked there since Milestone 1 and it 404'd (`docs/BACKLOG.md`); the index now
+      lists the one section that exists, and Milestone 8 still owns the rest.
+- [x] Onboarding state machine across the `profiles.onboarding_step` values — the
+      dashboard (`/dashboard`, Task 11) reads the signed-in user's real
+      `onboarding_step` and shows copy that is true for that step
+      (`src/lib/onboarding/dashboard-copy.ts`), replacing a hard-coded "Finish
+      onboarding" message that used to show even to a user who had finished. The
+      `strategy` step — where the voice step actually lands a user, per Ruling
+      R11 — is the common case this milestone produces, and its copy says
+      Milestone 3 hasn't shipped yet without implying the user left anything undone.
 
 ## Milestone 3 — strategy
 
