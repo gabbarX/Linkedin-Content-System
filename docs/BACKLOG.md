@@ -78,6 +78,26 @@ architecture from spec §6, not placeholders to invent later.
 **Trigger:** Milestone 3 fills `/calendar` and `/strategy`; Milestone 8 fills
 `/settings`. Until then, they 404 — do not hide the links to make it look tidy.
 
+## Accounts
+
+**`docs/ACCOUNTS.md` step 5 carries an unsourced timing claim about self-serve
+LinkedIn products.** "if one is still pending after a day, check the portal
+again before assuming something is wrong" — nothing in the product spec
+establishes any timing for LinkedIn's self-serve product approval. It was
+judged adequately hedged (it tells the reader not to assume, rather than
+asserting a guarantee) and accepted as-is rather than reworded.
+**Trigger:** if a founder reports the one-day figure was wrong or misleading in
+practice, replace it with whatever is actually observed.
+
+**`docs/ACCOUNTS.md` step 6 presumes the Community Management API application
+form presents a selectable list of use cases.** That is unverified portal UI —
+nobody on this project has seen the actual form. Low stakes, since the founder
+completing the step sees the real thing and the surrounding text already tells
+them to check the current list rather than trust the labels, but it remains an
+unverified claim in a document written to be followed literally.
+**Trigger:** the first time anyone actually opens the CMA application form —
+correct the description to match what it really shows.
+
 ## Milestone 2, before any feature code
 
 **Work through `docs/ACCOUNTS.md` steps 7–12 and perform the first live sign-in.**
