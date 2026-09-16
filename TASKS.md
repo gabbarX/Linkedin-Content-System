@@ -138,8 +138,21 @@ question per screen.
       advance validates the whole draft, writes `business_profiles` and the
       cadence/time/timezone onto `profiles`, clears the draft, and sets
       `onboarding_step = 'samples'`. Browser-verified end to end, both widths.
-- [ ] Writing-sample paste (5-10 posts, or 2 written fresh)
-- [ ] Derive the **Voice Profile** (sentence rhythm, openers, line breaks, vocabulary, emoji/hashtag policy, banned phrases)
+- [x] Writing-sample paste (5-10 posts, or 2 written fresh) — the 5-10/2-written
+      rule lives in one shared Zod schema (`src/lib/onboarding/samples.ts`) so the
+      client's live status line and the server action's final check can never
+      disagree. Samples are saved (`addWritingSamples`, with per-sample counts
+      from `measureSample`) *before* derivation is ever attempted, so a failed
+      model call cannot cost the user the text they just pasted. A failed
+      derivation switches the same screen into a retry state — "Try again" /
+      "Start over" — with a message that distinguishes a missing key, a rate
+      limit, and everything else. Browser-verified end to end, including a
+      forced failure (an invalid model id, temporarily, then reverted) and an
+      unforced one that occurred naturally on a 2-written-sample submission and
+      recovered correctly on retry.
+- [x] Derive the **Voice Profile** (sentence rhythm, openers, line breaks, vocabulary, emoji/hashtag policy, banned phrases) —
+      wired end to end for the first time via `/onboarding/samples`:
+      `deriveVoiceProfile` → `saveDerivedVoiceProfile` → `onboarding_step = 'voice'`.
 - [ ] Derive the **Business Profile**
 - [ ] Both editable — when output feels wrong, there must be a dial to turn
 - [ ] Onboarding state machine across the `profiles.onboarding_step` values
