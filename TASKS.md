@@ -154,7 +154,16 @@ question per screen.
       wired end to end for the first time via `/onboarding/samples`:
       `deriveVoiceProfile` → `saveDerivedVoiceProfile` → `onboarding_step = 'voice'`.
 - [ ] Derive the **Business Profile**
-- [ ] Both editable — when output feels wrong, there must be a dial to turn
+- [x] **Voice Profile** editable — `/onboarding/voice`. Seven judged fields as selects (options
+      built from the repository's own const tuples, never retyped, with a human label and a
+      one-line explanation per option — the raw enum value is never shown); four array fields
+      (openers, closers, vocabulary, banned phrases) as add/remove lists; the three measured
+      fields shown read-only with a note that they came from the samples. "Save changes" persists
+      immediately (`updateVoiceProfile`, which always sets `user_edited = true` — reaching this
+      screen and confirming is itself the human review); "Continue" saves and then advances via
+      `nextStep('voice')` → `'strategy'` (Ruling R11: not the plan's original `'done'` — the
+      spec's own state machine has `strategy` and `paywall` as real steps still to come).
+      Business Profile editing is Task 10, under `/settings`.
 - [ ] Onboarding state machine across the `profiles.onboarding_step` values
 
 ## Milestone 3 — strategy
