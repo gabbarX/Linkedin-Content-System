@@ -12,7 +12,9 @@ export default function Home() {
         writes each post for you to approve — and tells you which ones booked calls.
       </p>
       <div className="mt-10">
-        <Button render={<Link href="/login" />}>Get started</Button>
+        <Button nativeButton={false} render={<Link href="/login" />}>
+          Get started
+        </Button>
       </div>
     </main>
   )

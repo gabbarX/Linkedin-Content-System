@@ -48,14 +48,6 @@ queries are untyped. Deferred because there is nothing to query yet and the
 placeholder will be replaced by `supabase gen types` output.
 **Trigger:** the first real query against `profiles`.
 
-## UI
-
-**`src/app/page.tsx`: add `nativeButton={false}` to `Button render={<Link/>}`.**
-Base UI logs a dev-only console error when a `render` prop produces an anchor
-without it. The rendered markup is already a correct `<a href>`; this is console
-noise, not a defect.
-**Trigger:** the next time that file is edited for any reason.
-
 ## Configuration
 
 **Split `src/lib/env.ts` into `env.public.ts` and `env.server.ts`.**
