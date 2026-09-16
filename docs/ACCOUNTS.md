@@ -157,9 +157,38 @@ That path is what `src/app/auth/callback/route.ts` serves and what the login pag
 
 **Check it worked:** all four URLs appear in the redirect list after saving.
 
+### 9a. Give yourself a password — the quickest way in
+
+Sign-in offers three methods: email + password, magic link, and Google. Only the
+password one works with no further configuration, so do this first and you are
+never locked out while you set the other two up.
+
+```
+npm run seed:dev -- you@yourdomain.com
+```
+
+It creates a confirmed account and prints a generated password once. To choose
+your own, prefer the environment variable over an argument — a password on the
+command line lands in your shell history:
+
+```
+SEED_DEV_PASSWORD='something-long' npm run seed:dev -- you@yourdomain.com
+```
+
+Re-running it on an existing account resets only the password. The account, its
+profile and all its onboarding data are left alone.
+
+**Check it worked:** sign in at `/login` with that address and password. A brand
+new account lands on `/onboarding/interview`; one that has finished onboarding
+lands on `/dashboard`.
+
+Supabase enforces a minimum password length of 6 by default. Raise it under
+**Authentication → Providers → Email** before there are real users.
+
 ### 9b. Point the email templates at `/auth/confirm` — required
 
-**Without this step nobody can sign in.** Supabase's stock templates use
+**Without this step the magic link does not work** (password sign-in, §9a, is
+unaffected). Supabase's stock templates use
 `{{ .ConfirmationURL }}`, which routes the link through Supabase's own
 `/auth/v1/verify` and hands our app a PKCE `code`. Exchanging that code needs a
 verifier stored in the browser that *requested* the link — so the link only ever

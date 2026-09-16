@@ -92,9 +92,17 @@ public Data API. See the amendments in spec §3 and §5.
       from a different device than requested it — the code exchange never could.
       `/auth/callback` is kept for Google OAuth, where it is correct.
       `/auth/dev-login` and its seeded fixture user are deleted.
-- [!] **YOU: point the Supabase email templates at `/auth/confirm`.**
-      `docs/ACCOUNTS.md` §9b has the exact strings. Until this is done the
-      emailed link still carries the old URL and **nobody can sign in.**
+- [x] **Email + password sign-in.** Verified end to end in a browser: seed an
+      account, sign in at `/login`, land on onboarding; wrong password shows
+      Supabase's generic "Invalid login credentials" and leaves you signed out.
+      This is the first sign-in through the front door the project has had.
+      Spec §3 amended — both original methods depend on configuration outside
+      the repository, so neither could be the only way in.
+- [ ] **YOU: `npm run seed:dev -- you@yourdomain.com`** to give yourself a
+      password. `docs/ACCOUNTS.md` §9a.
+- [ ] **YOU: point the Supabase email templates at `/auth/confirm`** to make the
+      magic link work. `docs/ACCOUNTS.md` §9b. No longer blocking — password
+      sign-in works without it.
 - [ ] **Perform the first live sign-in.** Still the test that matters, and still
       not done: no one has yet arrived at `/login`, received an email, clicked it
       and landed signed in. Everything else in the auth path has now run.

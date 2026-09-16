@@ -65,12 +65,34 @@ Competitive note: Taplio, Supergrow, AuthoredUp and Kleo are **not** LinkedIn pa
 | Data | Supabase Postgres, accessed through **Prisma** | Prisma owns the schema and every query. It connects as the `postgres` role, which has BYPASSRLS. |
 | Authorization | **Application-level, in repositories** | *Amended 2026-09-16.* Ownership is enforced by `src/server/db/repositories`, where every function takes an explicit `userId`, guarded by an ESLint rule that blocks importing the raw client elsewhere. |
 | Data API | Row-level security, keyed to `auth.uid()` | RLS is retained and must never be dropped: the anon key is public, so RLS is what protects the PostgREST path. It no longer constrains Prisma. |
-| Auth | Supabase Auth — magic link + Google | LinkedIn is a *connection*, never the login. See §3.1. |
+| Auth | Supabase Auth — **email + password**, magic link, Google | LinkedIn is a *connection*, never the login. See §3.1. Password sign-in added 2026-09-16 — see the amendment below. |
 | Hosting | Vercel + Vercel Cron | Cron drives the job engine. No separate worker service. |
 | LLM | OpenRouter (single gateway) | One API, trivial model switching, one bill. Anthropic `cache_control` passed through so prompt caching still applies to the large Voice Profile context. |
 | Trends | Exa | Purpose-built for fresh, semantically filtered retrieval, and cheapest at this volume. Accessed through a `SearchProvider` interface so Tavily or Perplexity can be swapped in without touching `radar`. |
 | Billing | Stripe | Subscriptions + trial. |
 | Email | Resend | Approval nudges, trial reminders. |
+
+*Amended 2026-09-16, on the auth row:* email + password was added as a third
+sign-in method. The spec originally named magic link and Google only, on the
+reasoning that a password is one more thing for a solo coach to lose.
+
+What changed is that both original methods proved to have a hard external
+dependency. The magic link needs Supabase's email templates pointed at
+`/auth/confirm`, which is a dashboard change no code can make; Google needs an
+OAuth client configured. Until one of those is done there is no way into the
+product at all — not for a customer, and not for the person building it. An
+authentication design whose every path depends on configuration outside the
+repository cannot be the only design.
+
+Password sign-in has no such dependency: `scripts/seed-dev-user.mjs` creates a
+confirmed account and sets a password through the admin API, and sign-in is a
+single call. It is also what most people expect.
+
+This is recorded as a real product decision, not a development shortcut — the
+previous shortcut, a development-only bypass route, was deleted precisely
+because scaffolding that only works on one machine proves nothing about the
+product. Whether password sign-in is *offered prominently* at launch is a
+separate question, deliberately left open; the mechanism exists either way.
 
 *Amended 2026-09-16, after Milestone 1:* this row read "Next.js 15" when the spec was approved. `create-next-app` scaffolded **16.3.5** at build time, which is what the branch ships; the version is recorded here so the spec and the code agree.
 

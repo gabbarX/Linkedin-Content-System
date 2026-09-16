@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -69,29 +70,67 @@ function CallbackError() {
 }
 
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function sendMagicLink(e: React.FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    // createBrowserClient() throws when the NEXT_PUBLIC_* Supabase values are
-    // missing. Surfacing that here rather than letting the promise reject
-    // unhandled is what stops the button sitting on "Sending…" forever.
-    let supabase
+  /**
+   * createBrowserClient() throws when the NEXT_PUBLIC_* Supabase values are
+   * missing. Surfacing that here rather than letting the promise reject
+   * unhandled is what stops a button sitting on its pending label forever.
+   */
+  function client() {
     try {
-      supabase = createBrowserClient()
+      return createBrowserClient()
     } catch (cause) {
       setBusy(false)
       setError(handleConfigError(cause))
+      return null
+    }
+  }
+
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    const supabase = client()
+    if (!supabase) return
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      setBusy(false)
+      // Supabase returns a deliberately vague "Invalid login credentials" for
+      // both a wrong password and an unknown address, which is correct: telling
+      // an attacker which addresses have accounts is an account-enumeration
+      // oracle. Pass it through rather than trying to be more helpful.
+      setError(error.message)
       return
     }
+    // The session cookie is set by the browser client. refresh() makes the
+    // server components re-run and see it; push alone would render the
+    // authenticated shell from a cache that predates the session.
+    router.refresh()
+    router.push('/dashboard')
+  }
+
+  async function sendMagicLink() {
+    if (!email) {
+      setError('Enter your email address first.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const supabase = client()
+    if (!supabase) return
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${publicEnv.appUrl}/auth/callback` },
+      // /auth/confirm, not /auth/callback: the emailed link is verified by
+      // token_hash so it works from any device. See that route for why.
+      options: { emailRedirectTo: `${publicEnv.appUrl}/auth/confirm` },
     })
     setBusy(false)
     if (error) setError(error.message)
@@ -101,14 +140,9 @@ export default function LoginPage() {
   async function signInWithGoogle() {
     setBusy(true)
     setError(null)
-    let supabase
-    try {
-      supabase = createBrowserClient()
-    } catch (cause) {
-      setBusy(false)
-      setError(handleConfigError(cause))
-      return
-    }
+    const supabase = client()
+    if (!supabase) return
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${publicEnv.appUrl}/auth/callback` },
@@ -126,7 +160,7 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
       <h1 className="font-display text-3xl">Sign in to LinkBud</h1>
       <p className="mt-2 text-[var(--color-text-muted)]">
-        We&apos;ll email you a link. No password to remember.
+        Welcome back.
       </p>
 
       <Suspense fallback={null}>
@@ -138,22 +172,50 @@ export default function LoginPage() {
           Check your inbox — the link is on its way to {email}.
         </p>
       ) : (
-        <form onSubmit={sendMagicLink} className="mt-8 space-y-4">
+        <form onSubmit={signInWithPassword} className="mt-8 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@yourdomain.com"
             />
           </div>
-          {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-[var(--color-danger)]">
+              {error}
+            </p>
+          )}
+
           <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? 'Sending…' : 'Email me a link'}
+            {busy ? 'Signing in…' : 'Sign in'}
           </Button>
+
+          <button
+            type="button"
+            onClick={sendMagicLink}
+            disabled={busy}
+            className="w-full text-center text-sm text-[var(--color-text-muted)] underline underline-offset-4 hover:text-[var(--color-text)] disabled:opacity-50"
+          >
+            Email me a sign-in link instead
+          </button>
         </form>
       )}
 
@@ -166,7 +228,6 @@ export default function LoginPage() {
       <Button variant="outline" onClick={signInWithGoogle} className="w-full" disabled={busy}>
         {busy ? 'Redirecting…' : 'Continue with Google'}
       </Button>
-
     </main>
   )
 }
