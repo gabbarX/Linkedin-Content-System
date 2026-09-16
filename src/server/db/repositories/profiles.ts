@@ -1,5 +1,5 @@
 import 'server-only'
-import { prisma } from '../client'
+import { getPrisma } from '../client'
 
 /**
  * Profile data access.
@@ -76,7 +76,7 @@ function toProfile(row: ProfileRow): Profile {
 
 /** The signed-in user's profile, or null if the signup trigger has not run. */
 export async function getProfile(userId: string): Promise<Profile | null> {
-  const row = await prisma.profiles.findUnique({ where: { id: userId } })
+  const row = await getPrisma().profiles.findUnique({ where: { id: userId } })
   return row ? toProfile(row) : null
 }
 
@@ -98,7 +98,7 @@ export async function updateProfile(
   userId: string,
   patch: ProfileUpdate,
 ): Promise<Profile> {
-  const row = await prisma.profiles.update({
+  const row = await getPrisma().profiles.update({
     where: { id: userId },
     data: {
       ...(patch.fullName !== undefined && { full_name: patch.fullName }),
@@ -121,7 +121,7 @@ export async function updateProfile(
 export async function getOnboardingStep(
   userId: string,
 ): Promise<OnboardingStep | null> {
-  const row = await prisma.profiles.findUnique({
+  const row = await getPrisma().profiles.findUnique({
     where: { id: userId },
     select: { onboarding_step: true },
   })

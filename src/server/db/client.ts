@@ -54,8 +54,22 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const prisma = globalForPrisma.prisma ?? createClient()
+let client: PrismaClient | undefined
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
+/**
+ * Construction is deferred to the first query, and this is not a style
+ * preference — it is the same invariant CLAUDE.md states for `getServerEnv()`:
+ * **the app must build and prerender with no credentials present.** Building a
+ * client at module scope would read the environment during `next build`'s page
+ * data collection, the moment anything under src/app imports a repository, and
+ * a fresh clone's build would fail. Milestone 1 already shipped one bug of
+ * exactly this shape.
+ */
+export function getPrisma(): PrismaClient {
+  if (process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma ??= createClient()
+    return globalForPrisma.prisma
+  }
+  client ??= createClient()
+  return client
 }
