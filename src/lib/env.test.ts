@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parsePublicEnv, parseServerEnv } from './env'
 
 const valid = {
@@ -88,5 +88,63 @@ describe('parsePublicEnv', () => {
       SUPABASE_SERVICE_ROLE_KEY: 'service-key',
     })
     expect(Object.keys(env)).not.toContain('SUPABASE_SERVICE_ROLE_KEY')
+  })
+})
+
+// getPublicEnv() memoises its result at module scope (see env.ts), so each
+// test below resets the module registry and re-imports fresh rather than
+// calling the getPublicEnv already imported at the top of this file.
+describe('getPublicEnv', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it('returns the validated values when all three are present', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', validPublic.NEXT_PUBLIC_SUPABASE_URL)
+    vi.stubEnv(
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      validPublic.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    )
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', validPublic.NEXT_PUBLIC_APP_URL)
+    vi.resetModules()
+
+    const { getPublicEnv } = await import('./env')
+    expect(getPublicEnv().NEXT_PUBLIC_SUPABASE_URL).toBe(
+      validPublic.NEXT_PUBLIC_SUPABASE_URL,
+    )
+  })
+
+  // This is the exact condition behind the proxy bail-out bug: a truthiness
+  // check on the two Supabase values passes, but getPublicEnv() still throws
+  // because NEXT_PUBLIC_APP_URL is missing or malformed.
+  it('throws when NEXT_PUBLIC_APP_URL is missing, even though the two Supabase values are present', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', validPublic.NEXT_PUBLIC_SUPABASE_URL)
+    vi.stubEnv(
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      validPublic.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    )
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
+    vi.resetModules()
+
+    const { getPublicEnv } = await import('./env')
+    expect(() => getPublicEnv()).toThrow(/NEXT_PUBLIC_APP_URL/)
+  })
+
+  it('memoises the first result rather than re-reading process.env', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', validPublic.NEXT_PUBLIC_SUPABASE_URL)
+    vi.stubEnv(
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      validPublic.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    )
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', validPublic.NEXT_PUBLIC_APP_URL)
+    vi.resetModules()
+
+    const { getPublicEnv } = await import('./env')
+    const first = getPublicEnv()
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'not-a-url')
+    const second = getPublicEnv()
+
+    expect(second).toBe(first)
   })
 })
