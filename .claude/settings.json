@@ -14,7 +14,11 @@
   },
   "permissions": {
     "allow": [
-      "Bash(npm run:*)",
+      "Bash(npm run verify)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run lint)",
+      "Bash(npm run test)",
+      "Bash(npm run build)",
       "Bash(npx vitest:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
