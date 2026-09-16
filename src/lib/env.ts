@@ -30,10 +30,32 @@ const serverSchema = z.object({
 
 export type ServerEnv = z.infer<typeof serverSchema>
 
+/**
+ * An empty variable is an unset variable.
+ *
+ * `.env.example` ships every not-yet-needed key as `KEY=`, and the setup
+ * instructions say to copy it. Zod's `.optional()` admits `undefined`, not
+ * `''`, so each of those blank lines read as a present-but-invalid value and
+ * getServerEnv() threw naming ten keys nobody was supposed to have set yet.
+ * It stayed hidden until the first server-side env read in a request path,
+ * because everything before it used getPublicEnv().
+ *
+ * Applied to required keys too, deliberately: `KEY=` should be reported as
+ * missing, which is what it is, rather than as a malformed value.
+ */
+function withoutBlanks(
+  raw: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(raw).filter(([, value]) => value !== ''),
+  )
+}
+
+
 export function parseServerEnv(
   raw: Record<string, string | undefined>,
 ): ServerEnv {
-  const result = serverSchema.safeParse(raw)
+  const result = serverSchema.safeParse(withoutBlanks(raw))
   if (!result.success) {
     const lines = result.error.issues.map(
       (issue) => `  ${issue.path.join('.')}: ${issue.message}`,
@@ -71,7 +93,7 @@ export type ValidatedPublicEnv = z.infer<typeof publicSchema>
 export function parsePublicEnv(
   raw: Record<string, string | undefined>,
 ): ValidatedPublicEnv {
-  const result = publicSchema.safeParse(raw)
+  const result = publicSchema.safeParse(withoutBlanks(raw))
   if (!result.success) {
     const lines = result.error.issues.map(
       (issue) => `  ${issue.path.join('.')}: ${issue.message}`,

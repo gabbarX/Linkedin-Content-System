@@ -35,6 +35,27 @@ describe('parseServerEnv', () => {
     const env = parseServerEnv({ ...valid, OPENROUTER_API_KEY: 'sk-or-1' })
     expect(env.OPENROUTER_API_KEY).toBe('sk-or-1')
   })
+
+  // .env.example ships every not-yet-needed key as `KEY=`, and docs/ACCOUNTS.md
+  // tells you to copy it. The optional-key test above passes only because it
+  // omits those keys entirely -- a state the documented setup never produces.
+  it('treats a blank optional key as absent, not as a too-short value', () => {
+    const env = parseServerEnv({
+      ...valid,
+      OPENROUTER_API_KEY: '',
+      STRIPE_SECRET_KEY: '',
+      TOKEN_ENCRYPTION_KEY: '',
+    })
+    expect(env.OPENROUTER_API_KEY).toBeUndefined()
+    expect(env.STRIPE_SECRET_KEY).toBeUndefined()
+    expect(env.TOKEN_ENCRYPTION_KEY).toBeUndefined()
+  })
+
+  it('still rejects a blank required key, naming it', () => {
+    expect(() =>
+      parseServerEnv({ ...valid, SUPABASE_SERVICE_ROLE_KEY: '' }),
+    ).toThrow(/SUPABASE_SERVICE_ROLE_KEY/)
+  })
 })
 
 const validPublic = {
