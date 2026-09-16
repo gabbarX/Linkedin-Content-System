@@ -7,14 +7,25 @@ const links = [
   { href: '/settings', label: 'Settings' },
 ]
 
+/**
+ * The authenticated navigation.
+ *
+ * Wraps rather than overflows: Milestone 3's browser QA found the single
+ * `h-14` row pushed the account name and Sign out past the viewport on a
+ * phone, so every authenticated page scrolled horizontally by ~250px. The
+ * links row and the account row may now break onto two lines, the height
+ * is a minimum rather than fixed, and the account name is hidden below
+ * `sm` — Sign out is the control that matters there, and the name is
+ * visible again on any wider screen.
+ */
 export function AppNav({ displayName }: { displayName: string }) {
   return (
     <header className="border-b border-[var(--color-border)]">
-      <div className="mx-auto flex h-14 max-w-5xl items-center gap-8 px-6">
+      <div className="mx-auto flex min-h-14 max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 sm:gap-x-8 sm:py-0">
         <Link href="/dashboard" className="font-display text-lg">
           LinkBud
         </Link>
-        <nav className="flex flex-1 items-center gap-6 text-sm">
+        <nav className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:gap-x-6">
           {links.map((link) => (
             <Link
               key={link.href}
@@ -25,8 +36,10 @@ export function AppNav({ displayName }: { displayName: string }) {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-[var(--color-text-muted)]">{displayName}</span>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden max-w-[16rem] truncate text-sm text-[var(--color-text-muted)] sm:inline">
+            {displayName}
+          </span>
           <form action="/auth/signout" method="post">
             <button
               type="submit"
