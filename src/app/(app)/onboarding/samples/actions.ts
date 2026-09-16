@@ -104,6 +104,17 @@ async function requireUserId(): Promise<string> {
  * response rather than an uncaught rejection. `redirect()` is deliberately
  * outside the try -- it works by throwing a Next.js navigation signal, and
  * catching that here would break the redirect instead of an error.
+ *
+ * `saveDerivedVoiceProfile` is called below with no options, so it declines
+ * (per its own doc comment, I1b) to overwrite a profile the user has
+ * already edited -- deliberately, not an oversight. This is the only
+ * caller, and it should never legitimately need to replace an edited
+ * profile: every path into this function runs at or before the samples
+ * step, before the voice step (the only place `user_edited` is ever set)
+ * has been reached. `samples/page.tsx` also stops a finished user from
+ * reaching this action again at all (I1a) -- if the refusal below ever
+ * actually fires, that guard has a bug and this is the belt catching what
+ * the suspenders missed, not a case this code path is designed to hit.
  */
 async function deriveAndAdvance(userId: string): Promise<SamplesActionResult> {
   let saved: SavedSummary = { total: 0, pasted: 0, written: 0 }
