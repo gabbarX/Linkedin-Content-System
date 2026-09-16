@@ -151,10 +151,29 @@ export async function completeJson<T>({
   }
 
   const payload: unknown = await response.json()
+
+  // OpenRouter can answer 200 with an error object and no choices -- observed
+  // live as {"error":{"message":"Upstream error from Nvidia: Service
+  // temporarily overloaded","code":502}}. Reporting that as "no content"
+  // hides the one fact the caller can act on, so it is surfaced first.
+  const upstreamError = extractError(payload)
+  if (upstreamError) {
+    throw new LlmError(
+      `OpenRouter returned an error (${upstreamError.code ?? 'no code'}): ${upstreamError.message}`,
+    )
+  }
+
   const content = extractContent(payload)
   if (!content) {
+    // Observed live: a choice with content null and finish_reason "error",
+    // after the provider streamed keepalives for two minutes. Naming the
+    // finish_reason is what lets a caller tell "provider failed mid-reply"
+    // from "provider refused" -- one is worth retrying, the other is not.
+    const finishReason = extractFinishReason(payload)
     throw new LlmError(
-      `OpenRouter returned no content for model ${model}. The provider may have refused the request.`,
+      `OpenRouter returned no content for model ${model}` +
+        (finishReason ? ` (finish_reason: ${finishReason})` : '') +
+        '. The provider may have refused the request or failed mid-reply.',
     )
   }
 
@@ -191,6 +210,29 @@ function toJsonSchema(schema: ZodType<unknown>): Record<string, unknown> {
     unknown
   >
   return rest
+}
+
+/** An `error` object inside an otherwise-OK payload, narrowed by hand. */
+function extractError(payload: unknown): { message: string; code: number | string | null } | null {
+  if (typeof payload !== 'object' || payload === null) return null
+  const error = (payload as { error?: unknown }).error
+  if (typeof error !== 'object' || error === null) return null
+
+  const message = (error as { message?: unknown }).message
+  const code = (error as { code?: unknown }).code
+  return {
+    message: typeof message === 'string' && message.length > 0 ? message : 'unknown error',
+    code: typeof code === 'number' || typeof code === 'string' ? code : null,
+  }
+}
+
+/** `choices[0].finish_reason`, if the payload has one. */
+function extractFinishReason(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null) return null
+  const choices = (payload as { choices?: unknown }).choices
+  if (!Array.isArray(choices) || choices.length === 0) return null
+  const reason = (choices[0] as { finish_reason?: unknown }).finish_reason
+  return typeof reason === 'string' ? reason : null
 }
 
 /** Narrowed by hand rather than trusting the response shape. */
