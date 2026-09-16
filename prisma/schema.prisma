@@ -79,3 +79,74 @@ model writing_samples {
 
   @@index([user_id])
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model pillars {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  strategy_id String     @db.Uuid
+  user_id     String     @db.Uuid
+  position    Int        @db.SmallInt
+  name        String
+  description String
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime   @default(now()) @db.Timestamptz(6)
+  strategies  strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  slots       slots[]
+
+  @@unique([strategy_id, position])
+  @@index([strategy_id])
+  @@index([user_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model slots {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  strategy_id  String     @db.Uuid
+  user_id      String     @db.Uuid
+  pillar_id    String     @db.Uuid
+  week_index   Int        @db.SmallInt
+  position     Int        @db.SmallInt
+  scheduled_on DateTime   @db.Date
+  theme        String
+  angle        String
+  format       String
+  brief        String
+  hook         String?
+  key_points   String[]   @default([])
+  proof_point  String?
+  cta          String?
+  status       String     @default("planned")
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime   @default(now()) @db.Timestamptz(6)
+  pillars      pillars    @relation(fields: [pillar_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  strategies   strategies @relation(fields: [strategy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([strategy_id, scheduled_on])
+  @@unique([strategy_id, week_index, position])
+  @@index([pillar_id])
+  @@index([strategy_id])
+  @@index([user_id, scheduled_on])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model strategies {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @unique @db.Uuid
+  version             Int       @default(1)
+  cadence_per_week    Int       @db.SmallInt
+  starts_on           DateTime  @db.Date
+  positioning         String
+  phase_authority     String
+  phase_problem_aware String
+  phase_offer_aware   String
+  phase_invitation    String
+  week_themes         String[]
+  generated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  pillars             pillars[]
+  slots               slots[]
+}
