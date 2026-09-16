@@ -17,6 +17,11 @@
    @theme inline maps them onto the --color-* names Tailwind expects.
    (A --color-x: var(--color-x) self-reference inside @theme inline
    does not resolve — the raw tokens need their own names.)
+
+   This block is the ONLY palette in the file. shadcn's generated
+   oklch() defaults used to sit here and were dead — every one of them
+   was redeclared by the reconciliation block at the bottom, so editing
+   them changed nothing. They are gone; edit the --lb-* values here.
    --------------------------------------------------------------- */
 
 :root {
@@ -32,38 +37,6 @@
   --lb-radius-sm: 4px;
   --lb-radius-md: 6px;
   --lb-radius-lg: 10px;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 :root[data-theme="dark"] {
@@ -78,53 +51,53 @@
 }
 
 @theme inline {
+  /* LinkBud's own utilities. `brand` and `text-muted` are deliberately
+     OUTSIDE shadcn's namespace: the primitives already use `bg-accent`
+     and `bg-muted` to mean "subtle hover or surface colour", so pointing
+     those two names at the brand green and the muted text colour
+     mis-coloured every focus and hover state in the kit. */
   --color-bg: var(--lb-bg);
   --color-surface: var(--lb-surface);
   --color-text: var(--lb-text);
-  --color-muted: var(--lb-muted);
+  --color-text-muted: var(--lb-muted);
   --color-border: var(--lb-border);
-  --color-accent: var(--lb-accent);
+  --color-brand: var(--lb-accent);
   --color-accent-fg: var(--lb-accent-fg);
   --color-danger: var(--lb-danger);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
 
+  /* Monotonic by construction: 4, 6, 10, 14, 18, 22, 26. The larger
+     steps derive from --lb-radius-lg, not from shadcn's --radius, so
+     `rounded-xl` can never come out smaller than `rounded-lg`. */
   --radius-sm: var(--lb-radius-sm);
   --radius-md: var(--lb-radius-md);
   --radius-lg: var(--lb-radius-lg);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+  --radius-xl: calc(var(--lb-radius-lg) * 1.4);
+  --radius-2xl: calc(var(--lb-radius-lg) * 1.8);
+  --radius-3xl: calc(var(--lb-radius-lg) * 2.2);
+  --radius-4xl: calc(var(--lb-radius-lg) * 2.6);
+
+  /* shadcn's token names, mapped to the values the reconciliation block
+     at the bottom of this file assigns them. */
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-destructive: var(--destructive);
+  --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
   --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
+  --color-popover-foreground: var(--popover-foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 body {
@@ -141,11 +114,12 @@ body {
   white-space: pre-wrap;
 }
 
-/* shadcn's init wrote its own --background/--primary/etc. as PLAIN
-   (unlayered) rules above. CSS cascade layers always lose to unlayered
-   styles regardless of source order, so this reconciliation block must
-   also stay unlayered — putting it in `@layer base` would silently be
-   overridden by shadcn's defaults above and reintroduce its palette. */
+/* shadcn's token names, pointed at the --lb-* palette so there is one
+   palette and not two. This block is deliberately PLAIN (unlayered):
+   `shadcn init` writes its own oklch() defaults as unlayered :root
+   rules, and CSS cascade layers always lose to unlayered styles
+   regardless of source order. Putting this in `@layer base` would mean
+   any regenerated shadcn default silently wins. Leave it unlayered. */
 :root {
   --background: var(--lb-bg);
   --foreground: var(--lb-text);

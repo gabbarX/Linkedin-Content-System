@@ -26,13 +26,15 @@ Dark mode is driven by `@custom-variant dark (&:is([data-theme="dark"] *))` — 
 | `--lb-bg` | `#faf8f4` | `#171613` | `--color-bg` | `bg-bg` |
 | `--lb-surface` | `#ffffff` | `#201e1a` | `--color-surface` | `bg-surface` |
 | `--lb-text` | `#1a1917` | `#f2efe8` | `--color-text` | `text-text` |
-| `--lb-muted` | `#6b6760` | `#a09a90` | `--color-muted` | `text-muted` |
+| `--lb-muted` | `#6b6760` | `#a09a90` | `--color-text-muted` | `text-text-muted` |
 | `--lb-border` | `#e7e2d8` | `#322e28` | `--color-border` | `border-border` |
-| `--lb-accent` | `#1f4b43` | `#6fae9d` | `--color-accent` | `bg-accent`, `text-accent` |
-| `--lb-accent-fg` | `#ffffff` | `#14211d` | `--color-accent-fg` | `text-accent-fg` |
+| `--lb-accent` | `#1f4b43` | `#6fae9d` | `--color-brand` | `bg-brand`, `text-brand` |
+| `--lb-accent-fg` | `#ffffff` | `#14211d` | `--color-accent-fg` | `text-accent-fg` (the foreground that pairs with `bg-brand`) |
 | `--lb-danger` | `#9b3626` | `#d4705c` | `--color-danger` | `text-danger` |
 
 There is **exactly one accent**, the deep green `--lb-accent`. `--lb-danger` is a state colour for destructive actions and errors, not a second accent — do not use it decoratively.
+
+**`brand` and `text-muted`, not `accent` and `muted`.** Those two names are shadcn's, and in the primitives they mean "subtle hover or surface colour", not "the brand green" and "the muted text colour". Pointing them at the `--lb-*` values mis-coloured the whole kit: `focus:bg-accent` on a dropdown item painted dark green on near-black, `hover:bg-muted` on the outline button painted `#6b6760` on the page ground, and the tabs list rendered `#6b6760` text on a `#6b6760` background. `--color-accent` and `--color-muted` now map to shadcn's own `--accent` / `--muted`, which the reconciliation block points at `--lb-surface`. Use `bg-brand` / `text-text-muted` for LinkBud's colours and leave `bg-accent` / `bg-muted` to the primitives.
 
 ### Radius tokens
 
@@ -42,7 +44,9 @@ There is **exactly one accent**, the deep green `--lb-accent`. `--lb-danger` is 
 | `--lb-radius-md` | `6px` | `--radius-md` | `rounded-md` |
 | `--lb-radius-lg` | `10px` | `--radius-lg` | `rounded-lg` |
 
-shadcn's `--radius` is reconciled to `--lb-radius-md`, and `--radius-xl` … `--radius-4xl` are computed from it by the generated theme block.
+`--radius-xl` … `--radius-4xl` are derived from `--lb-radius-lg` (×1.4, ×1.8, ×2.2, ×2.6 → 14, 18, 22, 26px), so the scale is monotonic: **4, 6, 10, 14, 18, 22, 26**. They used to derive from shadcn's `--radius`, which is `--lb-radius-md` (6px), making `rounded-xl` 8.4px — *smaller* than `rounded-lg` — while `card.tsx` used `rounded-xl` and `dropdown-menu.tsx` used `rounded-lg`. If you change `--lb-radius-lg`, the whole upper scale moves with it.
+
+shadcn's own `--radius` is still reconciled to `--lb-radius-md`; `sonner.tsx` reads it directly.
 
 ### Fonts
 
@@ -57,9 +61,13 @@ Both have real fallback stacks (`ui-sans-serif, system-ui, sans-serif` and `ui-s
 
 ### The shadcn reconciliation block — read this before editing `globals.css`
 
-`shadcn init` wrote its own neutral `oklch()` palette (`--background`, `--foreground`, `--primary`, `--card`, `--border`, `--ring`, the `--chart-*` and `--sidebar-*` sets) as **plain, unlayered** rules. CSS cascade layers always lose to unlayered styles regardless of source order, so the block at the bottom of the file that re-points those names at `--lb-*` **must also stay unlayered**. Moving it into `@layer base` would silently restore shadcn's grey palette. There is a comment in the file saying this; leave it there.
+`shadcn init` wrote its own neutral `oklch()` palette (`--background`, `--foreground`, `--primary`, `--card`, `--border`, `--ring`, the `--chart-*` and `--sidebar-*` sets) as **plain, unlayered** rules. CSS cascade layers always lose to unlayered styles regardless of source order, so the block at the bottom of the file that re-points those names at `--lb-*` **must also stay unlayered**. Moving it into `@layer base` would mean any regenerated shadcn default silently wins. There is a comment in the file saying this; leave it there.
 
-This is why shadcn components look right without modification: `bg-primary` resolves to `--lb-accent`, `bg-card` to `--lb-surface`, `border-border` to `--lb-border`.
+Those generated `oklch()` literals have been **deleted** from `:root`. Every one of them was redeclared by the reconciliation block at the bottom of the same file, at identical specificity and later in source order — so they never applied, and an agent told to change the palette would have edited them and seen nothing happen. The `--chart-*` and `--sidebar-*` sets and their `@theme` mappings are gone entirely; nothing referenced them. `globals.css` now has exactly one place where a colour is written down: the `--lb-*` block.
+
+**Where this reconciliation works, and where it does not.** `bg-primary` resolves to `--lb-accent`, `bg-card` and `bg-popover` to `--lb-surface`, `bg-background` to `--lb-bg`, `text-foreground` to `--lb-text`, `border-border` to `--lb-border` — those five names carry the same meaning in both systems, so the primitives take the LinkBud palette unmodified.
+
+`accent` and `muted` do **not** reconcile, because the two systems disagree about what the words mean. In shadcn they are subtle surface colours (`focus:bg-accent`, `hover:bg-muted`); in LinkBud they were the brand green and the muted text colour. They are reconciled to `--lb-surface` instead, and LinkBud's two values live under `brand` and `text-muted`. Do not point `--color-accent` or `--color-muted` back at `--lb-accent` / `--lb-muted` — that is the bug this replaced.
 
 ---
 
@@ -149,6 +157,6 @@ These are the default signatures of AI-generated interfaces. They make a paid pr
 
 ## How to reference tokens in components
 
-Prefer Tailwind utilities generated from the theme: `bg-bg`, `bg-surface`, `text-muted`, `border-border`, `bg-accent text-accent-fg`, `font-display`, `rounded-lg`.
+Prefer Tailwind utilities generated from the theme: `bg-bg`, `bg-surface`, `text-text-muted`, `border-border`, `bg-brand text-accent-fg`, `font-display`, `rounded-lg`.
 
-Some existing files use the explicit `text-[var(--color-muted)]` form — that is a real Tailwind arbitrary value and it resolves to the same token, so it is correct, just more verbose. Either is acceptable; a raw `#hex` is not.
+Some existing files use the explicit `text-[var(--color-text-muted)]` form — that is a real Tailwind arbitrary value and it resolves to the same token, so it is correct, just more verbose. Either is acceptable; a raw `#hex` is not.

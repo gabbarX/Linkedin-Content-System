@@ -7,7 +7,7 @@ export default function Home() {
       <h1 className="font-display text-5xl leading-tight">
         LinkedIn posts that point at your offer.
       </h1>
-      <p className="mt-6 max-w-xl text-lg text-[var(--color-muted)]">
+      <p className="mt-6 max-w-xl text-lg text-[var(--color-text-muted)]">
         LinkBud learns your business and your voice, plans twelve weeks of content,
         writes each post for you to approve — and tells you which ones booked calls.
       </p>

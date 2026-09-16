@@ -19,18 +19,18 @@ export function AppNav({ email }: { email: string }) {
             <Link
               key={link.href}
               href={link.href}
-              className="text-[var(--color-muted)] transition-colors hover:text-[var(--color-text)]"
+              className="text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
             >
               {link.label}
             </Link>
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-[var(--color-muted)]">{email}</span>
+          <span className="text-sm text-[var(--color-text-muted)]">{email}</span>
           <form action="/auth/signout" method="post">
             <button
               type="submit"
-              className="text-sm text-[var(--color-muted)] hover:text-[var(--color-text)]"
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             >
               Sign out
             </button>

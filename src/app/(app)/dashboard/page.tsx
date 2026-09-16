@@ -10,7 +10,7 @@ function Band({
   return (
     <section className="mb-12">
       <h2 className="font-display text-xl">{title}</h2>
-      <p className="mt-1 text-sm text-[var(--color-muted)]">{hint}</p>
+      <p className="mt-1 text-sm text-[var(--color-text-muted)]">{hint}</p>
       <div className="mt-4">{children}</div>
     </section>
   )
@@ -18,7 +18,7 @@ function Band({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] p-8 text-sm text-[var(--color-muted)]">
+    <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] p-8 text-sm text-[var(--color-text-muted)]">
       {children}
     </div>
   )
