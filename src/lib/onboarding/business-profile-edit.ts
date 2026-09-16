@@ -107,22 +107,34 @@ export function businessProfileToFormValues(
 }
 
 /**
+ * The pick mask for `businessProfileSchema` below, derived from
+ * `BUSINESS_PROFILE_QUESTIONS` rather than hand-typed a second time (I2):
+ * a hand-typed `.pick({...})` mask and `BUSINESS_PROFILE_QUESTIONS` could
+ * drift -- a field added to the interview and to `FIELD_COLUMNS` but
+ * forgotten here would be silently stripped by zod, and because
+ * `upsertBusinessProfile` is a full replace, the very next settings save
+ * would overwrite that field with `null`. Deriving the mask from the same
+ * array `BUSINESS_PROFILE_QUESTIONS` is built from makes that drift
+ * impossible instead of merely tested against.
+ *
+ * The cast is to `Record<BusinessProfileField, true>`, not to anything
+ * wider -- `question.field` is already `BusinessProfileField` by
+ * `BUSINESS_PROFILE_QUESTIONS`'s own element type, so this only restates
+ * what `Object.fromEntries`'s built-in signature (`Record<string, true>`)
+ * throws away, not something asserted without evidence.
+ */
+const businessProfileFieldMask = Object.fromEntries(
+  BUSINESS_PROFILE_QUESTIONS.map((question) => [question.field, true] as const),
+) as Record<BusinessProfileField, true>
+
+/**
  * The same validation the interview applies to these 8 fields, reused
  * rather than re-specified -- `.pick` narrows `interviewAnswersSchema`
  * (the single source, per Ruling R5) to exactly the business-profile
  * subset, so a required-field message, a trim rule, or a future check
  * added to the interview schema is never silently absent here.
  */
-const businessProfileSchema = interviewAnswersSchema.pick({
-  offer: true,
-  priceBand: true,
-  icp: true,
-  transformation: true,
-  proof: true,
-  pointOfView: true,
-  taboos: true,
-  ctaTarget: true,
-})
+export const businessProfileSchema = interviewAnswersSchema.pick(businessProfileFieldMask)
 
 /** Inferred from the schema above rather than hand-declared, so the two can
  * never drift -- matches `BusinessProfileInput`'s shape (optional fields

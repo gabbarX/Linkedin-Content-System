@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { FIELD_COLUMNS, INTERVIEW_QUESTIONS } from './questions'
 import {
   BUSINESS_PROFILE_QUESTIONS,
+  businessProfileSchema,
   businessProfileToFormValues,
   parseBusinessProfileFormValues,
   type BusinessProfileFormValues,
@@ -40,6 +41,22 @@ describe('BUSINESS_PROFILE_QUESTIONS', () => {
     const fields = BUSINESS_PROFILE_QUESTIONS.map((q) => q.field).sort()
     expect(fields).toEqual(
       ['ctaTarget', 'icp', 'offer', 'pointOfView', 'priceBand', 'proof', 'taboos', 'transformation'].sort(),
+    )
+  })
+})
+
+describe('businessProfileSchema', () => {
+  // I2: businessProfileSchema's pick mask is derived from
+  // BUSINESS_PROFILE_QUESTIONS so the two cannot drift apart, but this
+  // contract test re-derives the guarantee from the schema's own public
+  // shape rather than relying on that being true by construction -- it
+  // would still catch a hand-typed mask silently falling out of step,
+  // which is exactly the failure mode I2 flagged (a field the schema
+  // strips is written as `null` by upsertBusinessProfile's full replace on
+  // every subsequent settings save).
+  it('validates exactly the business-profile questions, no more and no fewer', () => {
+    expect(Object.keys(businessProfileSchema.shape).sort()).toEqual(
+      BUSINESS_PROFILE_QUESTIONS.map((q) => q.field).sort(),
     )
   })
 })
