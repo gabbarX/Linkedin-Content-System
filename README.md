@@ -104,3 +104,7 @@ src/
   proxy.ts            session refresh (not route protection)
 supabase/migrations/  schema and RLS, one file per change
 ```
+
+## Task list
+
+[`TASKS.md`](TASKS.md) tracks what is done and what is left.
