@@ -236,6 +236,30 @@ export function assembleSlots(phaseOutputs: PhaseOutput[], pillarCount: number, 
 - `npm run verify` green. Every route browser-verified at desktop and phone width with a clean console.
 - `TASKS.md` reflects reality.
 
+## Execution notes (2026-09-16)
+
+Where the build departed from the plan above, and why:
+
+- **One actions file, not two.** The plan put `actions.ts` beside each page;
+  the build has `src/server/strategy/actions.ts` shared by `/onboarding/strategy`,
+  `/strategy` and the brief-week retry, because three surfaces run the same two
+  operations and two copies of an authorization boundary is the shape Milestone 2's
+  reviews kept finding.
+- **A provider fallback was added** (`src/server/llm/complete-with-fallback.ts`) after the
+  default free provider returned a run of 502s and `finish_reason: "error"` during the
+  live spike. One extra call, transient failures only, sticky within a generation,
+  never when a model is pinned. Voice derivation uses it too after the same outage
+  turned the samples step into a dead end during QA.
+- **The gateway now surfaces an error object inside a 200** with its code, and names
+  `finish_reason` on a content-less choice. Both were "no content" before.
+- **`maxDuration` is 300, not 120.** Measured worst case with the fallback engaged was
+  141 s for a build; 120 left no margin.
+- **The live success path was verified through the functions, not the button.**
+  OpenRouter's account-wide free tier (50 requests/day) was exhausted by the spikes;
+  the browser showed the failure path on all three model-backed buttons instead. See
+  `TASKS.md` for the one outstanding check.
+- **A Milestone 1 nav overflow at 375px was fixed** in passing (`src/components/app-nav.tsx`).
+
 ## Deliberately not in this milestone
 
 Post text (Milestone 5, behind the paywall) · the paywall itself (Milestone 4) · re-briefing later weeks on a schedule (`draft_week` job, Milestone 6) · steering later weeks from trends or learnings (Milestones 8–9) · editing individual slots or pillars by hand (a real need, but a separate design question about what an edit means for the slots derived from a pillar).

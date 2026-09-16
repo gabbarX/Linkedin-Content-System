@@ -73,12 +73,72 @@ user silently orphans their profile.
 
 ## Routes
 
-**`/calendar`, `/strategy` and `/settings` are live nav links with no pages.**
-`src/components/app-nav.tsx` links all three; none exist, so all three 404 for a
-signed-in user. They were kept because they are the real information
-architecture from spec §6, not placeholders to invent later.
-**Trigger:** Milestone 3 fills `/calendar` and `/strategy`; Milestone 8 fills
-`/settings`. Until then, they 404 — do not hide the links to make it look tidy.
+**`/settings` is a minimal index.** Milestone 2 added the index and the
+business profile editor; Milestone 3 filled `/calendar` and `/strategy`, so no
+nav link 404s any more. The rest of the settings surface (cadence, posting
+time, timezone, the voice profile after onboarding) has no page yet.
+**Trigger:** Milestone 8, or the first user who asks to change their cadence.
+
+## Strategy
+
+**Regenerate replaces every slot; nothing hangs off a slot yet.**
+`replaceStrategy` deletes the user's pillars and slots and recreates them
+(Ruling R-M3-7). That is correct today because slots have no children. From
+Milestone 5, posts reference slots; a regenerate must then either refuse while
+posts exist, or re-parent/archive them — silently orphaning a customer's
+drafts is not an option.
+**Trigger:** the `posts` migration in Milestone 5 — decide before the FK is
+written.
+
+**Posting days are fixed per cadence.** 3 → Mon/Wed/Fri, 4 → Mon/Tue/Thu/Fri,
+5 → Mon–Fri (`src/lib/strategy/schedule.ts`, Ruling R-M3-2). The interview does
+not ask which days; asking would have delayed the day-one deliverable for a
+preference nobody has expressed yet.
+**Trigger:** the first user who wants a different pattern — add a question to
+`INTERVIEW_QUESTIONS`, a column on `profiles`, and read it in `weekdayOffsetsFor`.
+
+**Week 1 always starts on the first Monday strictly after today.** A user who
+finishes onboarding on a Monday waits a week for their first slot. Predictable,
+and it gives a full week's notice; but it is a choice, not a law.
+**Trigger:** Milestone 6, when approval nudges make the start date matter.
+
+**Later weeks are briefed only through the "write this week's briefs"
+button.** Spec §4.2 says only the next week is drafted in full; the job that
+briefs each new week as it arrives (`draft_week`) is Milestone 6's. Until then
+a user in week 2 has to press the button on `/strategy`.
+**Trigger:** Milestone 6, the `draft_week` job.
+
+**Cadence changes after generation do not re-lay the plan.** The strategy
+snapshots `cadence_per_week` (Ruling R-M3-9). Changing the profile's cadence
+later leaves the existing slots as they were until a regenerate.
+**Trigger:** the settings page that lets a user change cadence.
+
+## LLM (continued)
+
+**OpenRouter's free tier is 50 requests per day, account-wide.** Hit on
+2026-09-16 while building Milestone 3: a strategy is six calls, so eight
+builds exhaust the day, and the limit is shared by every model with a `:free`
+suffix — the fallback model included. The message names the remedy ("add 10
+credits to unlock 1000 free requests per day"). This is why the live
+success path of the strategy button could not be watched in the browser
+that day; the failure path was.
+**Trigger:** before the first paying customer, or before any load test — buy
+credits or move to a paid model. That is a spend, so the human decides.
+
+**The fallback model is pinned on one day's evidence.**
+`nex-agi/nex-n2.5-pro:free` in `src/server/llm/complete-with-fallback.ts`,
+selected from the five free models advertising structured outputs on
+2026-09-16 (schema-valid with integer fields, ~30 s). Same caveats as the
+default model: withdrawn without notice, rate-limited, training-data policy.
+**Trigger:** a 404 from it, or the paid-model decision above, which makes a
+fallback across free tiers moot.
+
+**The default free provider was unreliable during Milestone 3.** A run of
+`502 Service temporarily overloaded` inside 200 responses, and separately two
+minutes of whitespace keepalives before `finish_reason: "error"`. The gateway
+now names both; the fallback exists because of them. If it persists, re-run
+the model selection recorded in `src/server/llm/client.ts`.
+**Trigger:** the fallback warning appearing in logs more often than not.
 
 ## Accounts
 
