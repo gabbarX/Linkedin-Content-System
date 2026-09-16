@@ -1,7 +1,6 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -17,17 +16,21 @@ import {
 } from '@/lib/onboarding/samples'
 
 /**
- * Structurally identical to the `SamplesActionResult` union in
+ * Structurally identical to the `SavedSummary`/`SamplesActionResult` types in
  * `src/app/(app)/onboarding/samples/actions.ts` -- declared locally so this
  * component does not reach into an app route's internals for a type (same
  * pattern as `QuestionCard`'s local `SaveAnswerResult`). A success redirects
  * server-side before the promise resolves with a value, so `ok: true` is
  * never actually observed here.
  */
+type SavedSummary = { total: number; pasted: number; written: number }
 type SamplesActionResult =
   | { ok: true }
   | { ok: false; stage: 'validation'; message: string }
-  | { ok: false; stage: 'derivation'; message: string }
+  | { ok: false; stage: 'derivation'; message: string; saved: SavedSummary }
+
+const FALLBACK_ERROR_MESSAGE =
+  'Something went wrong. Your samples are safe -- try again in a moment.'
 
 export type ExistingSample = {
   id: string
@@ -39,13 +42,10 @@ type SampleListProps = {
    * only when a previous derivation attempt failed after the samples were
    * saved -- see the ordering guarantee in actions.ts. Used solely to pick
    * this component's *initial* screen on mount (retry vs. paste): once
-   * mounted, `mode` is owned by this component's own state, set directly by
-   * `handleSubmit` the instant a derivation fails, rather than re-derived
-   * from this prop -- a client component's state does not reset just
-   * because a prop changes on a `router.refresh()`, so re-deriving from the
-   * prop on every render would have left the paste form on screen, with the
-   * user's samples silently saved and no visible error, after exactly the
-   * failure this screen exists to make recoverable. */
+   * mounted, `mode` is owned by this component's own state, set directly
+   * from a server action's result rather than re-derived from this prop --
+   * a client component's state does not reset just because a prop changes
+   * on a `router.refresh()`. */
   initialSamples: ExistingSample[]
   submitSamples: (entries: SampleEntryInput[]) => Promise<SamplesActionResult>
   retryDerivation: () => Promise<SamplesActionResult>
@@ -61,17 +61,24 @@ type SampleListProps = {
  *     live against the shared 5-10/2-written rule before the user ever
  *     submits.
  *   * **Retry screen** -- samples are saved server-side. Reached either
- *     immediately after a failed first submission (this component switches
- *     itself, synchronously, the moment `submitSamples` reports a
- *     derivation-stage failure) or by loading this page fresh once samples
- *     already exist (`initialSamples` non-empty). Offers "derive" (first
- *     attempt or retry -- the server runs the identical operation either
- *     way) and "start over" (deletes every saved sample so the user can
- *     paste something different).
+ *     immediately after a failed submission (this component switches
+ *     itself, synchronously, the moment the server reports a
+ *     derivation-stage failure, using the `saved` counts *it* read from the
+ *     database -- never this component's own guess at what was typed) or by
+ *     loading this page fresh once samples already exist (`initialSamples`
+ *     non-empty). Offers "derive" (first attempt or retry -- the server
+ *     runs the identical operation either way) and "start over" (deletes
+ *     every saved sample so the user can paste something different).
  *
  * The model call is 8-12 seconds (measured, see `src/server/llm/client.ts`),
  * so every action that can trigger one runs inside `useTransition` and
  * renders a real pending message rather than a button that looks dead.
+ *
+ * Every server action call below is wrapped in try/catch. The actions
+ * themselves catch everything they can and return a typed failure, so this
+ * is a second line of defence -- an unexpected rejection (a framework-level
+ * error, a bug) still has to land the user somewhere with a next action
+ * instead of a transition that never resolves.
  */
 export function SampleList({
   initialSamples,
@@ -79,7 +86,6 @@ export function SampleList({
   retryDerivation,
   startOver,
 }: SampleListProps) {
-  const router = useRouter()
   const [mode, setMode] = useState<'paste' | 'retry'>(
     initialSamples.length > 0 ? 'retry' : 'paste',
   )
@@ -107,6 +113,13 @@ export function SampleList({
   const counts = countBySource(entries)
   const isValid = samplesSatisfyRule(entries)
 
+  function applyDerivationFailure(saved: SavedSummary, message: string) {
+    setSavedCounts({ pasted: saved.pasted, written: saved.written })
+    setSavedTotal(saved.total)
+    setMode('retry')
+    setDerivationError(message)
+  }
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!isValid) {
@@ -116,24 +129,17 @@ export function SampleList({
     setValidationError(null)
     setDerivationError(null)
     startTransition(async () => {
-      const result = await submitSamples(entries)
-      if (!result.ok) {
-        if (result.stage === 'validation') {
-          setValidationError(result.message)
-          return
+      try {
+        const result = await submitSamples(entries)
+        if (!result.ok) {
+          if (result.stage === 'derivation') {
+            applyDerivationFailure(result.saved, result.message)
+          } else {
+            setValidationError(result.message)
+          }
         }
-        // The server saves the samples before it ever attempts derivation
-        // (that ordering is the whole point -- see actions.ts) so by the
-        // time this branch runs, `entries` is exactly what is now durable.
-        // Switch to the retry screen right here, synchronously: waiting on
-        // a `router.refresh()` to update `initialSamples` would not work
-        // even if awaited, because this component's own state does not
-        // re-initialise from a changed prop after mount.
-        setSavedCounts(counts)
-        setSavedTotal(entries.length)
-        setMode('retry')
-        setDerivationError(result.message)
-        router.refresh()
+      } catch {
+        setValidationError(FALLBACK_ERROR_MESSAGE)
       }
     })
   }
@@ -141,9 +147,17 @@ export function SampleList({
   function handleRetry() {
     setDerivationError(null)
     startTransition(async () => {
-      const result = await retryDerivation()
-      if (!result.ok) {
-        setDerivationError(result.message)
+      try {
+        const result = await retryDerivation()
+        if (!result.ok) {
+          if (result.stage === 'derivation') {
+            applyDerivationFailure(result.saved, result.message)
+          } else {
+            setDerivationError(result.message)
+          }
+        }
+      } catch {
+        setDerivationError(FALLBACK_ERROR_MESSAGE)
       }
     })
   }
@@ -151,14 +165,19 @@ export function SampleList({
   function handleStartOver() {
     setDerivationError(null)
     startTransition(async () => {
-      await startOver()
-      setMode('paste')
-      setSavedCounts({ pasted: 0, written: 0 })
-      setSavedTotal(0)
-      setPastedText('')
-      setWrittenA('')
-      setWrittenB('')
-      router.refresh()
+      try {
+        await startOver()
+        setMode('paste')
+        setSavedCounts({ pasted: 0, written: 0 })
+        setSavedTotal(0)
+        setPastedText('')
+        setWrittenA('')
+        setWrittenB('')
+      } catch {
+        // Deletion failed -- stay on the retry screen with an honest message
+        // rather than silently pretending the samples are gone.
+        setDerivationError('Could not clear your saved samples. Try again.')
+      }
     })
   }
 

@@ -1,12 +1,15 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { samplesSubmissionSchema, type SampleEntryInput } from '@/lib/onboarding/samples'
+import {
+  countBySource,
+  samplesSubmissionSchema,
+  type SampleEntryInput,
+  type SampleSourceInput,
+} from '@/lib/onboarding/samples'
 import { nextStep, routeForStep } from '@/lib/onboarding/steps'
 import { createServerClient } from '@/lib/supabase/server'
-import {
-  updateProfile,
-} from '@/server/db/repositories/profiles'
+import { updateProfile } from '@/server/db/repositories/profiles'
 import {
   saveDerivedVoiceProfile,
   type DerivedVoiceProfile,
@@ -18,7 +21,7 @@ import {
   listWritingSamples,
   type NewWritingSample,
 } from '@/server/db/repositories/writing-samples'
-import { LlmError } from '@/server/llm/client'
+import { describeDerivationError } from '@/server/onboarding/describe-derivation-error'
 import { deriveVoiceProfile } from '@/server/onboarding/derive-voice'
 import { measureSample } from '@/server/onboarding/measure-samples'
 
@@ -38,33 +41,31 @@ import { measureSample } from '@/server/onboarding/measure-samples'
  * the time derivation is attempted, the samples are already durable, so
  * `retryDerivation` can re-run the model call with nothing more than the
  * user's session -- no re-paste required.
+ *
+ * **Every step in both operations is guarded**, not just the model call.
+ * A transient Prisma error while counting, inserting, saving the derived
+ * profile, or advancing the step is exactly as recoverable as a model
+ * failure from the user's point of view -- neither should be able to reject
+ * this action into an uncaught rejection, which (per Next's App Router)
+ * surfaces as a spinner that never resolves on the client and, if nothing
+ * catches it, the nearest error boundary. `describeDerivationError` still
+ * distinguishes an `LlmError` (model-specific: missing key, rate limit) from
+ * everything else, because those two have a different actionable message --
+ * but no code path here rejects into nothing.
  */
+
+/** What the client needs to render the retry screen honestly: the *actual*
+ * saved state, read from the database, never the client's own guess at what
+ * it just typed. */
+export type SavedSummary = { total: number; pasted: number; written: number }
 
 export type SamplesActionResult =
   | { ok: true }
   | { ok: false; stage: 'validation'; message: string }
-  | { ok: false; stage: 'derivation'; message: string }
+  | { ok: false; stage: 'derivation'; message: string; saved: SavedSummary }
 
-/**
- * Turn a caught model-call failure into something the user can act on. A
- * missing key and a rate limit are different problems with different
- * responses (task brief): one needs a fix on our side and retrying will not
- * help, the other resolves itself shortly. Everything else -- an unknown
- * model, a malformed reply, a dropped connection -- collapses into one
- * generic, still-recoverable message, because there is nothing more
- * specific the user could act on for any of them.
- */
-function describeDerivationError(error: unknown): string {
-  if (!(error instanceof LlmError)) {
-    return 'Something went wrong analysing your samples. Your samples are saved -- try again in a moment.'
-  }
-  if (error.message.includes('OPENROUTER_API_KEY is not set')) {
-    return 'The AI model is not configured yet, so retrying will not help until that is fixed on our side. Your samples are saved and nothing is lost.'
-  }
-  if (/OpenRouter returned 429/.test(error.message)) {
-    return 'The AI model is rate-limited right now. Your samples are saved -- wait a minute and try again.'
-  }
-  return 'The AI model returned an unexpected response. Your samples are saved -- try again in a moment.'
+function summarizeSaved(samples: readonly { source: SampleSourceInput }[]): SavedSummary {
+  return { total: samples.length, ...countBySource(samples) }
 }
 
 async function requireUserId(): Promise<string> {
@@ -81,19 +82,32 @@ async function requireUserId(): Promise<string> {
  * and only then redirect. Shared by the first submission and every retry --
  * from this point on the two are the same operation, because the samples
  * are already durable either way.
+ *
+ * The whole operation -- reading the saved samples, calling the model,
+ * persisting the result, advancing the step -- is one try/catch. Guarding
+ * only the model call was the gap a review caught: a Prisma error from any
+ * of the surrounding writes is no more the user's fault than a rate limit
+ * is, and deserves the same "samples are safe, here is a next action"
+ * response rather than an uncaught rejection. `redirect()` is deliberately
+ * outside the try -- it works by throwing a Next.js navigation signal, and
+ * catching that here would break the redirect instead of an error.
  */
 async function deriveAndAdvance(userId: string): Promise<SamplesActionResult> {
-  const samples = await listWritingSamples(userId)
+  let saved: SavedSummary = { total: 0, pasted: 0, written: 0 }
 
-  let derived: DerivedVoiceProfile
   try {
-    derived = await deriveVoiceProfile(samples.map((sample) => sample.content))
+    const samples = await listWritingSamples(userId)
+    saved = summarizeSaved(samples)
+
+    const derived: DerivedVoiceProfile = await deriveVoiceProfile(
+      samples.map((sample) => sample.content),
+    )
+    await saveDerivedVoiceProfile(userId, derived)
+    await updateProfile(userId, { onboardingStep: nextStep('samples') })
   } catch (error) {
-    return { ok: false, stage: 'derivation', message: describeDerivationError(error) }
+    return { ok: false, stage: 'derivation', message: describeDerivationError(error), saved }
   }
 
-  await saveDerivedVoiceProfile(userId, derived)
-  await updateProfile(userId, { onboardingStep: nextStep('samples') })
   redirect(routeForStep(nextStep('samples')))
 }
 
@@ -102,10 +116,15 @@ async function deriveAndAdvance(userId: string): Promise<SamplesActionResult> {
  * `samplesSubmissionSchema` the client checks inline, so the two can never
  * disagree about whether five pasted posts is enough.
  *
- * Refuses to run twice: if this account already has saved samples (a stale
- * client after a reload, a double submit racing a slow first request), it
- * returns a validation-stage message instead of appending a second batch --
- * `retryDerivation` is the correct call once samples already exist.
+ * If this account already has saved samples -- a stale client after a
+ * reload, a back-forward-cached form, two tabs racing a submit -- the newly
+ * typed entries are never written a second time. Instead of returning an
+ * error message with no matching action (the earlier version of this
+ * function did, and a review caught it: the message said "retry deriving"
+ * but the paste form has no retry control), this routes straight into
+ * `deriveAndAdvance`, exactly what `retryDerivation` would do. Either it
+ * succeeds and the user moves on, or it fails and lands them on the retry
+ * screen with a message and a button that agree with each other.
  */
 export async function submitSamples(entries: SampleEntryInput[]): Promise<SamplesActionResult> {
   const userId = await requireUserId()
@@ -116,22 +135,27 @@ export async function submitSamples(entries: SampleEntryInput[]): Promise<Sample
     return { ok: false, stage: 'validation', message }
   }
 
-  const existing = await countWritingSamples(userId)
-  if (existing > 0) {
+  try {
+    const existing = await countWritingSamples(userId)
+    if (existing === 0) {
+      const newSamples: NewWritingSample[] = parsed.data.samples.map((sample) => ({
+        content: sample.content,
+        source: sample.source,
+        ...measureSample(sample.content),
+      }))
+      await addWritingSamples(userId, newSamples)
+    }
+  } catch {
+    // Nothing durable happened in this branch -- the count or the insert
+    // itself failed, not anything downstream of a successful save. Stay on
+    // the paste form: the user's typed text is still in it, and there is
+    // nothing to retry deriving from yet.
     return {
       ok: false,
       stage: 'validation',
-      message:
-        'Samples are already saved for this account. Retry deriving your voice instead of resubmitting.',
+      message: 'Something went wrong saving your samples. Nothing was saved -- try again.',
     }
   }
-
-  const newSamples: NewWritingSample[] = parsed.data.samples.map((sample) => ({
-    content: sample.content,
-    source: sample.source,
-    ...measureSample(sample.content),
-  }))
-  await addWritingSamples(userId, newSamples)
 
   return deriveAndAdvance(userId)
 }
