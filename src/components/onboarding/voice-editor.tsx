@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { FieldOption, VoiceFormValues } from '@/lib/onboarding/voice-edit'
+import { SELECT_CLASS_NAME } from './select-class-name'
 
 /**
  * Structurally identical to `VoiceActionResult` in
@@ -24,9 +25,6 @@ import type { FieldOption, VoiceFormValues } from '@/lib/onboarding/voice-edit'
 type VoiceActionResult = { ok: true } | { ok: false; message: string }
 
 const FALLBACK_ERROR_MESSAGE = 'Something went wrong. Try again in a moment.'
-
-const selectClassName =
-  'h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm'
 
 type MeasuredFields = {
   avgSentenceLength: number | null
@@ -379,7 +377,7 @@ export function VoiceEditor({
                 id={field.id}
                 value={field.value}
                 onChange={(event) => field.onChange(event.target.value)}
-                className={`mt-3 ${selectClassName}`}
+                className={`mt-3 ${SELECT_CLASS_NAME}`}
               >
                 {field.options.map((option) => (
                   <option key={option.value} value={option.value}>
