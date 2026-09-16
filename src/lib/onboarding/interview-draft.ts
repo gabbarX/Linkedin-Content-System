@@ -1,7 +1,7 @@
 import {
-  FIELD_COLUMNS,
   INTERVIEW_QUESTIONS,
   interviewAnswersSchema,
+  questionAt,
   type InterviewAnswers,
   type InterviewField,
   type InterviewQuestion,
@@ -127,12 +127,18 @@ export function validateDraft(draft: InterviewDraft): DraftValidation {
       .filter((segment): segment is string => typeof segment === 'string'),
   )
 
-  const firstInvalidQuestion =
-    INTERVIEW_QUESTIONS.find((q) => invalidFields.has(q.field)) ?? INTERVIEW_QUESTIONS[0]
-  // INTERVIEW_QUESTIONS is a non-empty module-level constant (11 questions),
-  // so the fallback above is never actually undefined; the `?? INTERVIEW_QUESTIONS[0]`
-  // only exists to satisfy noUncheckedIndexedAccess at the `.find` callsite.
-  const firstInvalidField = (firstInvalidQuestion as InterviewQuestion).field
+  const fallbackQuestion = questionAt(0)
+  if (!fallbackQuestion) {
+    // INTERVIEW_QUESTIONS is a non-empty module-level constant (11
+    // questions), so this never actually throws -- but earning that fact
+    // this way, rather than an `as InterviewQuestion` cast (I3/M6), means
+    // the type stays honest about what `questionAt` can return everywhere
+    // else it's called.
+    throw new Error('INTERVIEW_QUESTIONS is unexpectedly empty')
+  }
+  const firstInvalidQuestion: InterviewQuestion =
+    INTERVIEW_QUESTIONS.find((q) => invalidFields.has(q.field)) ?? fallbackQuestion
+  const firstInvalidField = firstInvalidQuestion.field
   const firstInvalidIndex = INTERVIEW_QUESTIONS.findIndex((q) => q.field === firstInvalidField)
 
   return {
@@ -178,31 +184,44 @@ export type SplitAnswers = {
 
 /**
  * Splits a validated set of interview answers into the two persistence
- * calls the wizard's final advance makes. Routes each field by consulting
- * `FIELD_COLUMNS` — the single source of which table an answer belongs to
- * — rather than hardcoding the offer/icp/transformation-go-here split a
- * second time, which is exactly the duplication `FIELD_COLUMNS` exists to
- * prevent (see questions.ts).
+ * calls the wizard's final advance makes.
+ *
+ * Built as explicit literals from `answers` -- itself already validated
+ * against `interviewAnswersSchema`, so every field read below is a real,
+ * type-checked property of `InterviewAnswers` -- rather than assembled into
+ * loosely-typed records and force-cast to `BusinessProfileAnswers` /
+ * `ProfileAnswers` at the end (I3). The previous `as unknown as ...` casts
+ * claimed `cadencePerWeek: 3 | 4 | 5` and `preferredPostTime: Date` with no
+ * type-level or runtime evidence; a future `profiles`-bound field could have
+ * compiled while being silently dropped. Listing every field here by name
+ * means the compiler -- not a cast -- is what enforces that
+ * `BusinessProfileAnswers` and `ProfileAnswers` are actually populated:
+ * omitting a required field from either literal below is a type error, not
+ * a runtime surprise.
+ *
+ * Optional business-profile fields are added with a conditional spread
+ * (`...(x !== undefined && { x })`) rather than always assigning, because
+ * `businessProfile.priceBand = undefined` would still leave the key present
+ * -- and `upsertBusinessProfile` (and this module's own test suite) rely on
+ * a genuinely absent key, not one holding `undefined`.
  */
 export function splitAnswersForPersistence(answers: InterviewAnswers): SplitAnswers {
-  const businessProfile: Record<string, string | string[]> = {}
-  const profile: Record<string, string | number | Date> = {}
-
-  for (const field of Object.keys(FIELD_COLUMNS) as InterviewField[]) {
-    const value = answers[field]
-    if (value === undefined) continue
-
-    if (FIELD_COLUMNS[field].table === 'business_profiles') {
-      businessProfile[field] = value as string | string[]
-    } else if (field === 'preferredPostTime') {
-      profile[field] = hhmmToDate(value as string)
-    } else {
-      profile[field] = value as string | number
-    }
+  const businessProfile: BusinessProfileAnswers = {
+    offer: answers.offer,
+    icp: answers.icp,
+    transformation: answers.transformation,
+    taboos: answers.taboos,
+    ...(answers.priceBand !== undefined && { priceBand: answers.priceBand }),
+    ...(answers.proof !== undefined && { proof: answers.proof }),
+    ...(answers.pointOfView !== undefined && { pointOfView: answers.pointOfView }),
+    ...(answers.ctaTarget !== undefined && { ctaTarget: answers.ctaTarget }),
   }
 
-  return {
-    businessProfile: businessProfile as unknown as BusinessProfileAnswers,
-    profile: profile as unknown as ProfileAnswers,
+  const profile: ProfileAnswers = {
+    cadencePerWeek: answers.cadencePerWeek,
+    preferredPostTime: hhmmToDate(answers.preferredPostTime),
+    timezone: answers.timezone,
   }
+
+  return { businessProfile, profile }
 }
