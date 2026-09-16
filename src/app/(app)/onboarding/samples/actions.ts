@@ -68,6 +68,19 @@ function summarizeSaved(samples: readonly { source: SampleSourceInput }[]): Save
   return { total: samples.length, ...countBySource(samples) }
 }
 
+/**
+ * `Error.message`/`.name` are non-enumerable, so logging the error object
+ * itself (or a literal built from it) serialises to `{}` in the server log
+ * -- the same reasoning `src/app/auth/callback/route.ts` already documents.
+ * Used to log the real cause of a caught failure server-side: the
+ * user-facing message stays generic and recoverable on purpose, but a
+ * genuine programming bug must leave a trace *somewhere*, or it is strictly
+ * worse than the crash it replaced.
+ */
+function describeErrorForLog(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+}
+
 async function requireUserId(): Promise<string> {
   const supabase = await createServerClient()
   const {
@@ -105,6 +118,9 @@ async function deriveAndAdvance(userId: string): Promise<SamplesActionResult> {
     await saveDerivedVoiceProfile(userId, derived)
     await updateProfile(userId, { onboardingStep: nextStep('samples') })
   } catch (error) {
+    console.error(
+      `LinkBud: deriveAndAdvance failed for user ${userId} - ${describeErrorForLog(error)}`,
+    )
     return { ok: false, stage: 'derivation', message: describeDerivationError(error), saved }
   }
 
@@ -145,7 +161,10 @@ export async function submitSamples(entries: SampleEntryInput[]): Promise<Sample
       }))
       await addWritingSamples(userId, newSamples)
     }
-  } catch {
+  } catch (error) {
+    console.error(
+      `LinkBud: submitSamples failed to save samples for user ${userId} - ${describeErrorForLog(error)}`,
+    )
     // Nothing durable happened in this branch -- the count or the insert
     // itself failed, not anything downstream of a successful save. Stay on
     // the paste form: the user's typed text is still in it, and there is

@@ -1,6 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
+import { unstable_rethrow } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -138,7 +139,15 @@ export function SampleList({
             setValidationError(result.message)
           }
         }
-      } catch {
+      } catch (error) {
+        // A redirect (or notFound) is not a failure -- it is how a Server
+        // Action reaching redirect() reports success in the App Router:
+        // Next rejects the call with its own digest-tagged error so the
+        // framework's RedirectBoundary can catch it and navigate. Every
+        // successful submitSamples call ends in exactly this rejection.
+        // Re-throwing it lets that boundary do its job; only a genuine
+        // failure falls through to the message below.
+        unstable_rethrow(error)
         setValidationError(FALLBACK_ERROR_MESSAGE)
       }
     })
@@ -156,7 +165,11 @@ export function SampleList({
             setDerivationError(result.message)
           }
         }
-      } catch {
+      } catch (error) {
+        // Same reasoning as handleSubmit: retryDerivation redirects on
+        // success, which rejects with Next's own redirect error. That must
+        // reach the framework's boundary, not this component's fallback.
+        unstable_rethrow(error)
         setDerivationError(FALLBACK_ERROR_MESSAGE)
       }
     })
@@ -173,7 +186,13 @@ export function SampleList({
         setPastedText('')
         setWrittenA('')
         setWrittenB('')
-      } catch {
+      } catch (error) {
+        // startOver has no success-path redirect of its own, but
+        // requireUserId() inside it redirects to /login on an expired
+        // session, which rejects the same way -- so every catch here gets
+        // the identical treatment rather than leaving one call site as an
+        // unexplained exception to the other two.
+        unstable_rethrow(error)
         // Deletion failed -- stay on the retry screen with an honest message
         // rather than silently pretending the samples are gone.
         setDerivationError('Could not clear your saved samples. Try again.')
