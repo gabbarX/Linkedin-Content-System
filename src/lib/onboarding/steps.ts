@@ -25,17 +25,18 @@ export const ONBOARDING_STEPS = [
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
 
 /**
- * The onboarding page for a step, for the steps that have one in this
- * milestone. The single source both `routeForStep` and `onboardingRouteFor`
- * read from — see their doc comments for why two functions exist over one
- * map. Add a step's page here once Milestones 3+ build it, and both
- * functions (and the wizard, and the guard) pick it up together; there is
- * nowhere else a page path is written down.
+ * The onboarding page for a step, for the steps that have one. The single
+ * source both `routeForStep` and `onboardingRouteFor` read from — see their
+ * doc comments for why two functions exist over one map. Milestone 3 added
+ * `strategy` here (Ruling R-M3-5); Milestone 4 adds `paywall` the same way,
+ * and both functions (and the wizard, and the guard) pick it up together.
+ * There is nowhere else a page path is written down.
  */
 const PAGE_ROUTE_BY_STEP: Partial<Record<OnboardingStep, string>> = {
   interview: '/onboarding/interview',
   samples: '/onboarding/samples',
   voice: '/onboarding/voice',
+  strategy: '/onboarding/strategy',
 }
 
 /**
@@ -66,14 +67,16 @@ const PAGE_ROUTE_BY_STEP: Partial<Record<OnboardingStep, string>> = {
  * path is written down exactly once, so the wizard and the guard cannot
  * drift apart by one of two copies being updated and the other forgotten.
  *
- * Ruling R3: `routeForStep('strategy' | 'paywall')` is `/dashboard` because
- * Milestones 3 and 4 own those steps and have not built pages yet. Routing a
- * user at either step to a route that 404s is worse than routing them to the
- * dashboard they will eventually reach anyway. This is a deliberate,
- * temporary exception — not evidence that an unfinished user may reach the
- * dashboard in general. The invariant that must hold, and is tested, is
- * narrower and absolute: a user who has not finished the interview, samples
- * or voice steps can never reach the dashboard.
+ * Ruling R3, narrowed by Milestone 3: `routeForStep('paywall')` is
+ * `/dashboard` because Milestone 4 owns that step and has not built its page
+ * yet. Routing a user at that step to a route that 404s is worse than routing
+ * them to the dashboard they will eventually reach anyway. This is a
+ * deliberate, temporary exception — not evidence that an unfinished user may
+ * reach the dashboard in general. The invariant that must hold, and is
+ * tested, is absolute for every step with a page: a user who has not finished
+ * the interview, samples, voice or strategy steps can never reach the
+ * dashboard. (`strategy` was part of this exception until Milestone 3 built
+ * `/onboarding/strategy` — Ruling R-M3-5.)
  */
 export function routeForStep(step: OnboardingStep): string {
   return PAGE_ROUTE_BY_STEP[step] ?? '/dashboard'
@@ -83,12 +86,14 @@ export function routeForStep(step: OnboardingStep): string {
  * The onboarding page a user at `step` must finish before reaching the
  * product, or `null` if there is none to force them onto.
  *
- * `null` for `strategy`, `paywall` and `done` — the first two because
- * Milestones 3-4 haven't built their pages yet (Ruling R3), the last
- * because onboarding is finished. `(app)/(onboarded)/layout.tsx` redirects
- * only when this returns non-null, so it never redirects a `strategy` or
- * `paywall` user away from the dashboard — the one route they're actually
- * allowed on. Combined with `src/app/(app)/onboarding/**` living outside
+ * `null` for `paywall` and `done` — the first because Milestone 4 hasn't
+ * built its page yet (Ruling R3), the last because onboarding is finished.
+ * `(app)/(onboarded)/layout.tsx` redirects only when this returns non-null,
+ * so it never redirects a `paywall` user away from the dashboard — the one
+ * route they're actually allowed on. A `strategy` user IS redirected, to
+ * `/onboarding/strategy`, because a strategy is the day-one deliverable and
+ * nothing on the dashboard is true without one (Ruling R-M3-5). Combined
+ * with `src/app/(app)/onboarding/**` living outside
  * the `(onboarded)` route group (so it never runs through this guard at
  * all), a redirect loop is structurally impossible rather than avoided by
  * comparing the current path against a target, which was the previous,
