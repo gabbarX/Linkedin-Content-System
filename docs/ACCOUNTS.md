@@ -2,7 +2,7 @@
 
 This is the checklist of everything that has to be bought, registered or configured by hand before LinkBud can charge a customer. It is written to be worked through top to bottom. Each step says what to do, exactly what to paste where, and how to check it worked before moving on.
 
-You do not need to finish this in one sitting. But **steps 4, 5 and 6 are the long pole** — the Community Management API application has a reported 3–4 month turnaround with no SLA, and three milestones of the roadmap are blocked behind it. Get to step 6 in the first week even if nothing else is done.
+You do not need to finish this in one sitting. But **steps 4, 5 and 6 are the long pole** — the Community Management API application has a reported 3–4 month turnaround with no SLA, and Milestone 10 of the roadmap is blocked behind it entirely while three earlier milestones ship a reduced version until it lands. Get to step 6 in the first week even if nothing else is done.
 
 Keep a private note (password manager, not the repo) with every ID, key and secret as you generate it. Nothing in this list goes into git. `.gitignore` already blocks `.env*` except `.env.example`.
 
@@ -10,7 +10,7 @@ Keep a private note (password manager, not the repo) with every ID, key and secr
 
 ## 1. Incorporate
 
-**Why first:** the domain registrar, the bank, Stripe and LinkedIn's app review all want a legal entity name, and changing it later means re-verifying everything downstream.
+**Why first:** the domain registrar, the bank and Stripe all want a legal entity name, and the Community Management API application in step 6 describes the company by name. Changing it later means re-verifying everything downstream.
 
 - Register the company through whichever route your jurisdiction uses.
 - Record: legal entity name, company number, registered address, incorporation date.
@@ -28,7 +28,7 @@ Keep a private note (password manager, not the repo) with every ID, key and secr
 
 ## 3. Business email on that domain
 
-**Why:** LinkedIn's app review, Stripe, and your customers all treat a `@gmail.com` address as a hobby project. You also need a Google account for step 10.
+**Why:** Stripe and your customers both treat a `@gmail.com` address as a hobby project, and every account below wants a contact address that outlives a personal inbox. You also need a Google account for step 10.
 
 - Google Workspace → sign up at `workspace.google.com`, choose the Business Starter plan, and enter the domain from step 2.
 - Follow the setup wizard's DNS step: it gives you MX records to add at your registrar. Add them exactly as shown.
@@ -41,7 +41,7 @@ Keep a private note (password manager, not the repo) with every ID, key and secr
 **Why:** you cannot create a LinkedIn developer app without an associated Company Page, so this blocks steps 5 and 6.
 
 - Go to `linkedin.com/company/setup/new` and create a page for the company from step 1.
-- Fill in: name, the domain from step 2 as the website, industry, company size, tagline, logo, and an About section that describes the product in plain language. Do not leave it skeletal — LinkedIn's app reviewers look at this page.
+- Fill in: name, the domain from step 2 as the website, industry, company size, tagline, logo, and an About section that describes the product in plain language. Do not leave it skeletal — it is the public face of the company attached to both developer apps, and the application text in step 6 points at it.
 - Verify yourself as an admin of the page.
 
 **Check it worked:** the page is public, has a logo, and you can see the admin view.
@@ -52,13 +52,13 @@ This is the app that real customers connect to. It holds **Share on LinkedIn** (
 
 - Go to `linkedin.com/developers/apps` → **Create app**.
 - Name it something customer-facing (e.g. "LinkBud"), attach the Company Page from step 4, upload the logo, and accept the API Terms of Use.
-- **Products tab** → request **Share on LinkedIn** and **Sign In with LinkedIn using OpenID Connect**. Both are self-serve: they are granted immediately or within minutes, with no review.
+- **Products tab** → add **Share on LinkedIn** and **Sign In with LinkedIn using OpenID Connect**. Both are self-serve products, added from the developer portal without an application or review — unlike the Community Management API in step 6. How quickly they show as available is LinkedIn's business; if one is still pending after a day, check the portal again before assuming something is wrong.
 - **Auth tab** → under redirect URLs, add both:
   - `http://localhost:3000/api/linkedin/callback`
   - `https://yourdomain.com/api/linkedin/callback`
 - **Auth tab** → copy the **Client ID** and **Client Secret** into your private note. These become `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET`.
 
-**Check it worked:** the Products tab lists Share on LinkedIn and Sign In with LinkedIn as added (not "requested"), and the Auth tab shows the `w_member_social` scope among the granted scopes.
+**Check it worked:** the Products tab lists Share on LinkedIn and Sign In with LinkedIn as added (not "requested"), and the app's granted scopes include `w_member_social` — that is the scope publishing needs.
 
 > Note: nothing in the code uses these yet. The LinkedIn connection is built in Milestone 6. Getting the app created now means that milestone starts with credentials in hand.
 
@@ -70,7 +70,7 @@ The Community Management API cannot be requested on an app that already holds Sh
 
 > ### The warning that matters
 >
-> **A CMA rejection cannot be appealed on the same app.** If the application is turned down, the only route forward is creating a brand-new app and applying again — with the reported 3–4 month turnaround starting over. There is no resubmit button, no reviewer to argue with, and no partial credit. The description below is worth twenty minutes of your attention before you paste it.
+> **A CMA rejection cannot be appealed on the same app.** If the application is turned down, the route forward is creating a brand-new app and applying again — with the reported 3–4 month turnaround starting over. Assume you get one attempt per app and no opportunity to argue the decision. The description below is worth twenty minutes of your attention before you paste it.
 
 - Go to `linkedin.com/developers/apps` → **Create app**.
 - Name it distinctly so you can never confuse the two — e.g. "LinkBud Community Management". Attach the same Company Page.
@@ -78,11 +78,11 @@ The Community Management API cannot be requested on an app that already holds Sh
 - Find the Community Management API in the products list and start its **access request / application** form.
 - Fill it in using the draft below. Read it first and change the specifics — your actual company name, your actual customer count, your actual launch date. A description that is obviously a template reads as one.
 
-**Check it worked:** you have an application reference or confirmation email, and App B's product list is still empty apart from the pending CMA request. Diarise a check-in every four weeks; there is no SLA and no status notification you can rely on.
+**Check it worked:** you have an application reference or confirmation email, and App B's product list is still empty apart from the pending CMA request. Diarise a check-in every four weeks; there is no SLA, so treat a long silence as the normal state rather than as a signal either way.
 
 ### Pre-drafted CMA application description
 
-LinkedIn names a set of approved use cases on the application form. The two this product legitimately sits under are **Executive Management** and **Employee Advocacy**. Before submitting, read the current list on the form itself — LinkedIn revises it — and select the closest match rather than assuming the names below are still the labels shown.
+LinkedIn names a set of approved use cases for the Community Management API. Per the research behind this project, the two LinkBud legitimately sits under are **Executive Management** and **Employee Advocacy**. Before submitting, check the current list as the application presents it and select the closest match rather than assuming these labels are still the ones shown.
 
 Paste and edit:
 

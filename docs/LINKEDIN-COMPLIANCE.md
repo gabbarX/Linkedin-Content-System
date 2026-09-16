@@ -37,7 +37,7 @@ Each of these is a plausible, well-intentioned idea that a capable engineer will
 
 ### 2. Shipping a browser extension to read analytics the API will not give us
 
-- **Why it is tempting:** impression and engagement data is visible to the member in their own browser. An extension reads the page the user is already looking at, and unblocks the "what's working" band years before CMA approval might arrive.
+- **Why it is tempting:** impression and engagement data is visible to the member in their own browser. An extension reads the page the user is already looking at, and unblocks the "what's working" band long before CMA approval might arrive.
 - **What it costs:** an extension operating on LinkedIn pages is browser automation under the same User Agreement clauses, executed while signed in as the customer. Kleo's in-LinkedIn extension was reportedly pulled after a cease-and-desist. Our attribution loop is built from *our own* click data precisely so it works with no API dependency and no extension. The analytics gap is filled by CMA approval or not at all.
 
 ### 3. Publishing on a schedule without a human tap
@@ -48,7 +48,7 @@ Each of these is a plausible, well-intentioned idea that a capable engineer will
 ### 4. Storing LinkedIn-returned post text beyond 48 hours
 
 - **Why it is tempting:** caching the published text makes draft-vs-published diffing trivial, survives edits made inside LinkedIn, and would give the `learnings` module a cleaner signal.
-- **What it costs:** the Marketing API Data Storage Requirements permit member social activity to be stored for 48 hours. A permanent cache is a terms violation sitting in our database, discoverable in exactly the partner review that decides whether CMA is granted. Persist our own generated text, post URNs and numeric metrics indefinitely; everything LinkedIn hands back is purged by the `purge_linkedin_content` job inside 48 hours.
+- **What it costs:** the Marketing API Data Storage Requirements permit member social activity to be stored for 48 hours. A permanent cache is a terms violation sitting in our database — cheap to avoid now, and indefensible whenever it is found. Persist our own generated text, post URNs and numeric metrics indefinitely; everything LinkedIn hands back is purged by the `purge_linkedin_content` job inside 48 hours.
 
 ### 5. Requesting Community Management API access on the app that already holds Share on LinkedIn
 
@@ -58,7 +58,7 @@ Each of these is a plausible, well-intentioned idea that a capable engineer will
 ### 6. Using an unofficial API or the member's session cookies
 
 - **Why it is tempting:** undocumented endpoints return everything the official API withholds — analytics, profile data, a member's own posts. The session cookie is already in the user's browser, and a "paste your session cookie" flow is an afternoon of work.
-- **What it costs:** this is the same prohibited automation as scraping, performed with the customer's own credentials. It defeats the rate limits, bypasses the consent model, and makes the customer's account the thing LinkedIn restricts when it is detected. It would also end any prospect of CMA approval. No amount of feature value makes that trade worth it.
+- **What it costs:** this is the same prohibited automation as scraping, performed with the customer's own credentials. It defeats the rate limits, bypasses the consent model, and makes the customer's account the thing LinkedIn restricts when it is detected — the remedy the User Agreement names. No amount of feature value makes that trade worth it.
 
 ## The rule to apply when something new comes up
 

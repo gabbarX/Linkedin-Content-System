@@ -10,7 +10,7 @@ One milestone at a time, on its own branch, merged only when `npm run verify` pa
 
 ## Blocked on Community Management API approval
 
-**Milestone 10 is entirely blocked.** Nothing in it can be started, prototyped or stubbed until LinkedIn approves the CMA application filed in Milestone 0 step 6. The reported turnaround is 3–4 months with no SLA and no appeal — see `docs/LINKEDIN-COMPLIANCE.md`.
+**Milestone 10 is entirely blocked.** Nothing in it can be started, prototyped or stubbed until LinkedIn approves the CMA application filed in Milestone 0 step 6. The reported turnaround is 3–4 months with no SLA, and a rejection requires a brand-new app rather than a re-application — see `docs/LINKEDIN-COMPLIANCE.md`.
 
 Three earlier milestones ship a deliberately reduced version and gain capability on approval, but none of them are blocked:
 

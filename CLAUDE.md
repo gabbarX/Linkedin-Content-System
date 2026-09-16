@@ -28,7 +28,7 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 
 1. **Every publish is a user-initiated tap.** No unattended auto-publish, no "set and forget", at any tier. Automating posting is prohibited by LinkedIn's API ToS.
 2. **Never fetch a user's LinkedIn posts.** `r_member_social` is closed to new access. Voice comes from user-pasted samples only.
-3. **No scraping, no browser extension, no session cookies, no headless browser.** The remedy LinkedIn applies is restriction of the *customer's* account. This is an architectural boundary, not a trade-off.
+3. **No scraping, no browser extension, no session cookies, no headless browser.** The remedy LinkedIn names is restriction of the *customer's* account. This is an architectural boundary, not a trade-off.
 4. **Purge LinkedIn-returned social content within 48 hours.** Persist only our own generated content, post URNs and numeric metrics.
 5. **Two LinkedIn apps.** App A holds Share on LinkedIn + OIDC. App B is clean and holds the Community Management API application. Never add a product to App B.
 6. **v1 is text-only.** No carousels, no images, no multi-image — those need CMA approval.
@@ -92,7 +92,7 @@ These are the default signatures of AI-generated interfaces and they make a paid
 
 Do not do any of these unilaterally. Stop, explain the options, and wait:
 
-- **Schema changes** — any new table, column, or RLS policy
+- **Schema changes** — any new table, column, or RLS policy. An RLS mistake is invisible until it hands one customer another customer's data, and migrations that have been applied cannot be edited.
 - **New dependencies** — every package added is a lifetime maintenance cost on a solo project
 - **Anything touching `publisher`** — it posts to a real customer's real feed
 - **Anything touching billing** — it charges a real card
