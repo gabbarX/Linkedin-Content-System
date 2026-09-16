@@ -7,7 +7,7 @@ const links = [
   { href: '/settings', label: 'Settings' },
 ]
 
-export function AppNav({ email }: { email: string }) {
+export function AppNav({ displayName }: { displayName: string }) {
   return (
     <header className="border-b border-[var(--color-border)]">
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-8 px-6">
@@ -26,7 +26,7 @@ export function AppNav({ email }: { email: string }) {
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-[var(--color-text-muted)]">{email}</span>
+          <span className="text-sm text-[var(--color-text-muted)]">{displayName}</span>
           <form action="/auth/signout" method="post">
             <button
               type="submit"
