@@ -4,9 +4,9 @@
 
 **Goal:** Stand up a running, deployable LinkBud app — scaffold, design system, validated configuration, Supabase data layer with RLS, working auth, app shell, project documentation and Claude Code tooling — so every later milestone starts from a green build instead of an empty folder.
 
-**Architecture:** A single Next.js 15 App Router application in TypeScript. Supabase provides Postgres, Auth and row-level security; the app talks to it through three explicit clients (browser, server-component, admin) so the service-role key can never leak into a client bundle. All configuration is parsed and validated once at startup through a single `env` module, so a missing key fails loudly at boot rather than silently at 2am in a cron worker. The design system is expressed as CSS custom properties consumed by Tailwind v4's `@theme`, giving one place to change the entire visual language.
+**Architecture:** A single Next.js 16 App Router application in TypeScript. Supabase provides Postgres, Auth and row-level security; the app talks to it through three explicit clients (browser, server-component, admin) so the service-role key can never leak into a client bundle. All configuration is parsed and validated once at startup through a single `env` module, so a missing key fails loudly at boot rather than silently at 2am in a cron worker. The design system is expressed as CSS custom properties consumed by Tailwind v4's `@theme`, giving one place to change the entire visual language.
 
-**Tech Stack:** Next.js 15 (App Router), React 19, TypeScript (strict), Tailwind CSS v4, shadcn/ui, Supabase (`@supabase/ssr`), Zod, Vitest, Vercel.
+**Tech Stack:** Next.js 16 (App Router), React 19, TypeScript (strict), Tailwind CSS v4, shadcn/ui, Supabase (`@supabase/ssr`), Zod, Vitest, Vercel.
 
 **Spec:** [`docs/superpowers/specs/2026-09-16-linkbud-design.md`](../specs/2026-09-16-linkbud-design.md)
 
@@ -50,7 +50,7 @@ Every task's requirements implicitly include this section. Values are copied ver
 | `src/lib/types/database.ts` | Generated Supabase types |
 | `src/components/ui/*` | shadcn primitives |
 | `src/components/app-nav.tsx` | Authenticated navigation |
-| `middleware.ts` | Session refresh on every request |
+| `src/proxy.ts` | Session refresh on every request (Next 16 `proxy` convention; the `middleware` convention is deprecated) |
 | `supabase/migrations/*.sql` | Schema and RLS, one file per change |
 | `docs/CLAUDE.md` → `CLAUDE.md` | Working agreement for Claude |
 | `docs/ARCHITECTURE.md` | Module map and interfaces |
@@ -554,7 +554,7 @@ export async function createServerClient() {
           }
         } catch {
           // Called from a Server Component, where cookies are read-only.
-          // middleware.ts refreshes the session, so this is safe to ignore.
+          // src/proxy.ts refreshes the session, so this is safe to ignore.
         }
       },
     },
@@ -701,7 +701,7 @@ git commit -m "feat: supabase clients and profiles table with RLS"
 
 **Files:**
 - Create: `src/app/(auth)/login/page.tsx`, `src/app/auth/callback/route.ts`, `src/app/auth/signout/route.ts`
-- Create: `middleware.ts`
+- Create: `src/proxy.ts`
 
 **Interfaces:**
 - Consumes: `createBrowserClient`, `createServerClient` (Task 4), `publicEnv` (Task 2)
@@ -709,15 +709,15 @@ git commit -m "feat: supabase clients and profiles table with RLS"
 
 LinkedIn is deliberately **not** an auth provider here. See spec §3.1: a revoked LinkedIn grant must never lock a paying customer out of their own drafts.
 
-- [ ] **Step 1: Session-refresh middleware**
+- [ ] **Step 1: Session-refresh proxy**
 
-Create `middleware.ts` at the repo root:
+Create `src/proxy.ts` (NOT the repo root, and NOT `middleware.ts` — Next 16 deprecates the `middleware` file convention in favour of `proxy`, and with a `src/` directory the file resolves at `src/proxy.ts`):
 
 ```ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -742,6 +742,8 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refreshes the auth token. Required — do not remove.
+  // Bail out before this if configuration is missing, or a misconfigured
+  // deploy 500s on every route including the public landing page.
   await supabase.auth.getUser()
 
   return response
@@ -787,11 +789,18 @@ export default function LoginPage() {
   }
 
   async function signInWithGoogle() {
+    setBusy(true)
+    setError(null)
     const supabase = createBrowserClient()
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${publicEnv.appUrl}/auth/callback` },
     })
+    // On success the browser navigates away, so this only runs on failure.
+    if (error) {
+      setError(error.message)
+      setBusy(false)
+    }
   }
 
   return (
@@ -847,10 +856,27 @@ Create `src/app/auth/callback/route.ts`:
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 
+/**
+ * `next` is attacker-controllable. Resolving it against our own origin and
+ * comparing origins rejects `//evil.com`, `https://evil.com`, and the
+ * `@evil.com` userinfo trick — which the WHATWG URL parser would otherwise
+ * read as a host, sending the user to an attacker's site the moment they
+ * finish signing in.
+ */
+export function safeNext(next: string | null, origin: string): string {
+  if (!next) return '/dashboard'
+  try {
+    const parsed = new URL(next, origin)
+    return parsed.origin === origin ? `${parsed.pathname}${parsed.search}` : '/dashboard'
+  } catch {
+    return '/dashboard'
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = safeNext(searchParams.get('next'), origin)
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)

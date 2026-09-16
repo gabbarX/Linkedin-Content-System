@@ -60,7 +60,7 @@ Competitive note: Taplio, Supergrow, AuthoredUp and Kleo are **not** LinkedIn pa
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Framework | Next.js 15, App Router, TypeScript | One language, one repo, one deploy. Claude writes Next.js more reliably than any alternative — for a solo vibecoded project that outweighs framework elegance. |
+| Framework | Next.js 16, App Router, TypeScript | One language, one repo, one deploy. Claude writes Next.js more reliably than any alternative — for a solo vibecoded project that outweighs framework elegance. |
 | UI | Tailwind CSS + shadcn/ui | Composable primitives the design system can be expressed in directly. |
 | Data | Supabase Postgres, row-level security on every table | Collapses database, auth, storage and authorisation into one service. |
 | Auth | Supabase Auth — magic link + Google | LinkedIn is a *connection*, never the login. See §3.1. |
@@ -69,6 +69,8 @@ Competitive note: Taplio, Supergrow, AuthoredUp and Kleo are **not** LinkedIn pa
 | Trends | Exa | Purpose-built for fresh, semantically filtered retrieval, and cheapest at this volume. Accessed through a `SearchProvider` interface so Tavily or Perplexity can be swapped in without touching `radar`. |
 | Billing | Stripe | Subscriptions + trial. |
 | Email | Resend | Approval nudges, trial reminders. |
+
+*Amended 2026-09-16, after Milestone 1:* this row read "Next.js 15" when the spec was approved. `create-next-app` scaffolded **16.3.5** at build time, which is what the branch ships; the version is recorded here so the spec and the code agree.
 
 ### 3.1 Why LinkedIn is not the login
 
@@ -197,7 +199,7 @@ Core tables. RLS on all of them, keyed to `auth.uid()`.
 
 | Table | Purpose |
 |---|---|
-| `users` | Supabase Auth mirror, timezone, onboarding state |
+| `profiles` | Supabase Auth mirror, timezone, onboarding state |
 | `business_profiles` | Offer, ICP, transformation, proof, POV, taboos, CTA target |
 | `voice_profiles` | Structured voice fields, user-edited |
 | `writing_samples` | Pasted posts, with derived format metadata for exemplar matching |
@@ -217,6 +219,8 @@ Core tables. RLS on all of them, keyed to `auth.uid()`.
 | `subscriptions` | Stripe customer, subscription, status, trial_end |
 
 LinkedIn access and refresh tokens are encrypted at rest. No LinkedIn-returned social content is persisted beyond 48 hours.
+
+*Amended 2026-09-16, after Milestone 1:* the first row read `users`. The table is named **`profiles`** — a `public.users` sitting beside Supabase's own `auth.users` is a trap, and `supabase/migrations/0001_profiles.sql` creates `public.profiles`.
 
 ---
 

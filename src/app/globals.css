@@ -1,0 +1,155 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dark mode is driven by the same [data-theme="dark"] attribute that
+   gates our --lb-* tokens (see below), not the default .dark class, so
+   there is exactly one switch for the whole visual language. */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* ---------------------------------------------------------------
+   LinkBud — calm editorial.
+   Warm off-white ground, near-black text, ONE restrained accent.
+   Banned: gradients, glassmorphism, neon, decorative shadows,
+   emoji as iconography, a second accent colour.
+
+   Raw palette values live on --lb-* custom properties below, and
+   @theme inline maps them onto the --color-* names Tailwind expects.
+   (A --color-x: var(--color-x) self-reference inside @theme inline
+   does not resolve — the raw tokens need their own names.)
+
+   This block is the ONLY palette in the file. shadcn's generated
+   oklch() defaults used to sit here and were dead — every one of them
+   was redeclared by the reconciliation block at the bottom, so editing
+   them changed nothing. They are gone; edit the --lb-* values here.
+   --------------------------------------------------------------- */
+
+:root {
+  --lb-bg: #faf8f4;
+  --lb-surface: #ffffff;
+  --lb-text: #1a1917;
+  --lb-muted: #6b6760;
+  --lb-border: #e7e2d8;
+  --lb-accent: #1f4b43;
+  --lb-accent-fg: #ffffff;
+  --lb-danger: #9b3626;
+
+  --lb-radius-sm: 4px;
+  --lb-radius-md: 6px;
+  --lb-radius-lg: 10px;
+}
+
+:root[data-theme="dark"] {
+  --lb-bg: #171613;
+  --lb-surface: #201e1a;
+  --lb-text: #f2efe8;
+  --lb-muted: #a09a90;
+  --lb-border: #322e28;
+  --lb-accent: #6fae9d;
+  --lb-accent-fg: #14211d;
+  --lb-danger: #d4705c;
+}
+
+@theme inline {
+  /* LinkBud's own utilities. `brand` and `text-muted` are deliberately
+     OUTSIDE shadcn's namespace: the primitives already use `bg-accent`
+     and `bg-muted` to mean "subtle hover or surface colour", so pointing
+     those two names at the brand green and the muted text colour
+     mis-coloured every focus and hover state in the kit. */
+  --color-bg: var(--lb-bg);
+  --color-surface: var(--lb-surface);
+  --color-text: var(--lb-text);
+  --color-text-muted: var(--lb-muted);
+  --color-border: var(--lb-border);
+  --color-brand: var(--lb-accent);
+  --color-accent-fg: var(--lb-accent-fg);
+  --color-danger: var(--lb-danger);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  /* Monotonic by construction: 4, 6, 10, 14, 18, 22, 26. The larger
+     steps derive from --lb-radius-lg, not from shadcn's --radius, so
+     `rounded-xl` can never come out smaller than `rounded-lg`. */
+  --radius-sm: var(--lb-radius-sm);
+  --radius-md: var(--lb-radius-md);
+  --radius-lg: var(--lb-radius-lg);
+  --radius-xl: calc(var(--lb-radius-lg) * 1.4);
+  --radius-2xl: calc(var(--lb-radius-lg) * 1.8);
+  --radius-3xl: calc(var(--lb-radius-lg) * 2.2);
+  --radius-4xl: calc(var(--lb-radius-lg) * 2.6);
+
+  /* shadcn's token names, mapped to the values the reconciliation block
+     at the bottom of this file assigns them. */
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-destructive: var(--destructive);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+}
+
+body {
+  background: var(--lb-bg);
+  color: var(--lb-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Long-form reading is the core act in this product. */
+.prose-post {
+  max-width: 62ch;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+/* shadcn's token names, pointed at the --lb-* palette so there is one
+   palette and not two. This block is deliberately PLAIN (unlayered):
+   `shadcn init` writes its own oklch() defaults as unlayered :root
+   rules, and CSS cascade layers always lose to unlayered styles
+   regardless of source order. Putting this in `@layer base` would mean
+   any regenerated shadcn default silently wins. Leave it unlayered. */
+:root {
+  --background: var(--lb-bg);
+  --foreground: var(--lb-text);
+  --card: var(--lb-surface);
+  --card-foreground: var(--lb-text);
+  --popover: var(--lb-surface);
+  --popover-foreground: var(--lb-text);
+  --primary: var(--lb-accent);
+  --primary-foreground: var(--lb-accent-fg);
+  --secondary: var(--lb-surface);
+  --secondary-foreground: var(--lb-text);
+  --muted: var(--lb-surface);
+  --muted-foreground: var(--lb-muted);
+  --accent: var(--lb-surface);
+  --accent-foreground: var(--lb-text);
+  --destructive: var(--lb-danger);
+  --border: var(--lb-border);
+  --input: var(--lb-border);
+  --ring: var(--lb-accent);
+  --radius: var(--lb-radius-md);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
