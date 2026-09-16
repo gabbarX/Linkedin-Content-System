@@ -8,6 +8,12 @@ const serverSchema = z.object({
 
   // Added by later milestones. Optional until the milestone that needs them,
   // so the app boots throughout the build rather than only at the end.
+  // Prisma. DATABASE_URL is the Supavisor transaction pooler (6543,
+  // pgbouncer=true) used at runtime; DIRECT_URL is the direct connection (5432)
+  // used only by the Prisma CLI. Optional so the app still builds with no
+  // credentials — src/server/db/client.ts throws with a clear message instead.
+  DATABASE_URL: z.string().min(1).optional(),
+  DIRECT_URL: z.string().min(1).optional(),
   SHORT_LINK_DOMAIN: z.string().url().optional(),
   OPENROUTER_API_KEY: z.string().min(1).optional(),
   EXA_API_KEY: z.string().min(1).optional(),

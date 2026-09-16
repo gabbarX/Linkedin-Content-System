@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Skill symlinks are machine-specific; the real files live in .agents/skills
+.claude/skills/
+# Local env backups
+.env.backup-*

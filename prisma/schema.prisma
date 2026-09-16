@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model profiles {
+  id                  String   @id @db.Uuid
+  email               String
+  full_name           String?
+  timezone            String   @default("UTC")
+  cadence_per_week    Int      @default(3) @db.SmallInt
+  preferred_post_time DateTime @default(dbgenerated("'08:00:00'::time without time zone")) @db.Time(6)
+  onboarding_step     String   @default("interview")
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @default(now()) @db.Timestamptz(6)
+}

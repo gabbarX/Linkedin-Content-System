@@ -28,11 +28,12 @@ pole on carousels and the whole analytics loop. Full instructions in
 - [ ] LinkedIn **App B** — clean app, Community Management API application filed
 - [ ] Stripe — product at $49/mo with a 14-day trial
 - [ ] Resend — domain verified
-- [ ] Supabase project created
+- [x] Supabase project created — reachable, keys distinct
+- [x] `DATABASE_URL` + `DIRECT_URL` set and connecting (password percent-encoded)
 - [ ] Google OAuth client created, added to Supabase
 - [ ] Vercel project + environment variables
-- [ ] **Apply `supabase/migrations/0001_profiles.sql`**, then confirm `relrowsecurity` is `true`
-- [ ] Regenerate `src/lib/types/database.ts` with `supabase gen types`
+- [x] **Applied `0001_profiles.sql` and `0002`** — verified live: RLS enabled AND forced, three policies scoped to `authenticated`, both triggers present, both functions pinned to `search_path=''`
+- [ ] ~~Regenerate `src/lib/types/database.ts`~~ — superseded by Prisma; the placeholder file is now unused and should be deleted
 
 ---
 
@@ -52,6 +53,24 @@ pole on carousels and the whole analytics loop. Full instructions in
 - [x] Browser QA — routes, auth guard, CSRF, open-redirect defence, contrast, a11y, mobile
 
 ---
+
+## Prisma adoption ✅ complete
+
+Decided 2026-09-16: Prisma owns the schema and all queries; authorization moved
+from RLS into application code. RLS is retained as the guard on Supabase's
+public Data API. See the amendments in spec §3 and §5.
+
+- [x] Prisma 7.10.0 pinned (npm's `latest` is a release candidate — see `docs/BACKLOG.md`)
+- [x] `prisma.config.ts` — CLI on `DIRECT_URL`, runtime on pooled `DATABASE_URL`
+- [x] Schema introspected; the `auth` schema deliberately excluded
+- [x] `0002` drops the cross-schema FK, replaces cascade with a trigger
+- [x] `src/server/db/client.ts` — pooled adapter, `server-only`, hot-reload safe
+- [x] `src/server/db/repositories/profiles.ts` — every function takes `userId` first
+- [x] ESLint guard blocking raw-client imports — **verified to fire**
+- [x] Prisma smoke-tested against the live database
+- [ ] Port `(app)/layout.tsx` and the dashboard to read the profile via the repository
+- [ ] Delete the now-unused `src/lib/types/database.ts` placeholder
+- [ ] Decide whether supabase-js stays for anything beyond auth
 
 ## Milestone 2 — onboarding
 

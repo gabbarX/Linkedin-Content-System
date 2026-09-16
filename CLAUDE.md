@@ -13,7 +13,8 @@ LinkBud is a LinkedIn content system for solo B2B coaches and consultants: it le
 | Framework | Next.js 16.3.5, App Router, `src/` dir | Newer than most training data. Read `node_modules/next/dist/docs/` before writing framework code. |
 | Language | TypeScript, `strict` | No `any`, no non-null `!` to silence the compiler. |
 | UI | Tailwind CSS v4 + shadcn (Nova preset, **Base UI** primitives) | Not Radix. See `docs/DESIGN-SYSTEM.md`. |
-| Data | Supabase Postgres, RLS on every table | Three clients: `browser`, `server`, `admin` (service role, `server-only`). |
+| Data | Supabase Postgres via **Prisma 7.10** | Prisma connects as `postgres` (BYPASSRLS). **RLS does not protect these queries.** Ownership lives in `src/server/db/repositories`. |
+| Data API | supabase-js + RLS | Still used for auth. RLS guards the public PostgREST path and must never be dropped. |
 | Auth | Supabase Auth — magic link + Google | **LinkedIn is never the login.** It is a revocable integration. |
 | Hosting | Vercel + Vercel Cron | Cron drives the job engine; no separate worker. |
 | LLM | OpenRouter (single gateway) | Not yet wired. Milestone 5. |
@@ -47,7 +48,11 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 | `src/app/(app)/layout.tsx` | Authenticated shell + session guard (redirects to `/login`) |
 | `src/app/(app)/dashboard/page.tsx` | Three-band dashboard skeleton |
 | `src/lib/env.ts` | The only place `process.env` is read. `getServerEnv()` and `getPublicEnv()` throw naming the missing variable; `publicEnv` does not. |
-| `src/lib/supabase/{browser,server,admin}.ts` | Supabase clients. `admin.ts` is `server-only` — never import it from a component. |
+| `src/lib/supabase/{browser,server,admin}.ts` | Supabase clients, now used for **auth only**. `admin.ts` is `server-only`. |
+| `src/server/db/client.ts` | The Prisma client. **Never import this outside `src/server/db`** — ESLint blocks it. It sees every user's rows. |
+| `src/server/db/repositories/` | All data access. Every function takes `userId` first and scopes on it. This is the authorization model. |
+| `prisma/schema.prisma` | One model, `profiles`. The `auth` schema is deliberately absent. |
+| `prisma.config.ts` | Prisma 7 config. CLI uses `DIRECT_URL` (5432); runtime uses `DATABASE_URL` (6543, pooled). |
 | `src/lib/types/database.ts` | **Placeholder types.** Regenerate with `supabase gen types` once a project exists. |
 | `src/lib/auth/safe-next.ts` | Same-origin redirect validation. Tested. |
 | `src/components/ui/*` | shadcn primitives (Base UI) |
@@ -123,6 +128,7 @@ These are the default signatures of AI-generated interfaces and they make a paid
 
 Do not do any of these unilaterally. Stop, explain the options, and wait:
 
+- **Any query that does not scope by `userId`** — Prisma bypasses RLS, so a missing scope is a cross-customer data leak, not a bug.
 - **Schema changes** — any new table, column, or RLS policy. An RLS mistake is invisible until it hands one customer another customer's data, and migrations that have been applied cannot be edited.
 - **New dependencies** — every package added is a lifetime maintenance cost on a solo project
 - **Anything touching `publisher`** — it posts to a real customer's real feed

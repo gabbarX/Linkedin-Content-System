@@ -61,6 +61,25 @@ imports it.
 **Trigger:** before the first server secret that is genuinely sensitive to name —
 realistically Milestone 4 (Stripe) or Milestone 6 (LinkedIn tokens).
 
+## Prisma
+
+**Revisit Prisma's native RLS support when v8 reaches GA.**
+Prisma 8 adds `@@rls` policy authoring in the schema and an official
+`@prisma/orm-extension-supabase` that manages Supabase RLS end to end. That
+would let the database enforce ownership again instead of the repository
+convention. As of 2026-09-16 v8 is release-candidate only — note that npm's
+`latest` dist-tag points at `8.0.0-rc.15` while stable `7.10.0` is tagged
+`prev`, so a naive `npm install prisma` installs a pre-release. We are pinned
+to `^7.10.0` deliberately.
+**Trigger:** a stable 8.x release appears on npm.
+
+**`profiles` has no foreign key to `auth.users`.**
+Removed in `0002` because a cross-schema FK drags all 27 Supabase Auth tables
+into `schema.prisma`. Cascade delete is preserved by the `on_auth_user_deleted`
+trigger, which is therefore load-bearing — if it is ever dropped, deleting a
+user silently orphans their profile.
+**Trigger:** if Prisma gains per-table introspection scoping, reinstate the FK.
+
 ## Routes
 
 **`/calendar`, `/strategy` and `/settings` are live nav links with no pages.**

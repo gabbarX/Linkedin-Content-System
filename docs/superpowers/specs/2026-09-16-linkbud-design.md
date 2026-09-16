@@ -62,7 +62,9 @@ Competitive note: Taplio, Supergrow, AuthoredUp and Kleo are **not** LinkedIn pa
 |---|---|---|
 | Framework | Next.js 16, App Router, TypeScript | One language, one repo, one deploy. Claude writes Next.js more reliably than any alternative — for a solo vibecoded project that outweighs framework elegance. |
 | UI | Tailwind CSS + shadcn/ui | Composable primitives the design system can be expressed in directly. |
-| Data | Supabase Postgres, row-level security on every table | Collapses database, auth, storage and authorisation into one service. |
+| Data | Supabase Postgres, accessed through **Prisma** | Prisma owns the schema and every query. It connects as the `postgres` role, which has BYPASSRLS. |
+| Authorization | **Application-level, in repositories** | *Amended 2026-09-16.* Ownership is enforced by `src/server/db/repositories`, where every function takes an explicit `userId`, guarded by an ESLint rule that blocks importing the raw client elsewhere. |
+| Data API | Row-level security, keyed to `auth.uid()` | RLS is retained and must never be dropped: the anon key is public, so RLS is what protects the PostgREST path. It no longer constrains Prisma. |
 | Auth | Supabase Auth — magic link + Google | LinkedIn is a *connection*, never the login. See §3.1. |
 | Hosting | Vercel + Vercel Cron | Cron drives the job engine. No separate worker service. |
 | LLM | OpenRouter (single gateway) | One API, trivial model switching, one bill. Anthropic `cache_control` passed through so prompt caching still applies to the large Voice Profile context. |
@@ -195,7 +197,11 @@ Every learning is visible and deletable. Legible learning beats magic learning �
 
 ## 5. Data model
 
-Core tables. RLS on all of them, keyed to `auth.uid()`.
+Core tables.
+
+*Amended 2026-09-16.* The authorization model changed when Prisma was adopted. RLS is **enabled and forced** on every table and remains the guard on Supabase's Data API — reachable by anyone holding the public anon key. It does **not** constrain Prisma, which connects as a BYPASSRLS role (verified: `postgres` and `service_role` have `rolbypassrls = true`; `anon` and `authenticated` do not). Ownership on the Prisma path is enforced in application code by the repositories.
+
+`profiles.id` holds `auth.users.id` but carries no foreign key to it: a cross-schema FK forces Prisma to introspect all 27 Supabase Auth tables, which its migration engine would then consider its own to manage. Cascade-on-delete is preserved by an explicit trigger instead (`supabase/migrations/0002`).
 
 | Table | Purpose |
 |---|---|
