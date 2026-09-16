@@ -50,7 +50,7 @@ Every task's requirements implicitly include this section. Values are copied ver
 | `src/lib/types/database.ts` | Generated Supabase types |
 | `src/components/ui/*` | shadcn primitives |
 | `src/components/app-nav.tsx` | Authenticated navigation |
-| `middleware.ts` | Session refresh on every request |
+| `src/middleware.ts` | Session refresh on every request |
 | `supabase/migrations/*.sql` | Schema and RLS, one file per change |
 | `docs/CLAUDE.md` → `CLAUDE.md` | Working agreement for Claude |
 | `docs/ARCHITECTURE.md` | Module map and interfaces |
@@ -701,7 +701,7 @@ git commit -m "feat: supabase clients and profiles table with RLS"
 
 **Files:**
 - Create: `src/app/(auth)/login/page.tsx`, `src/app/auth/callback/route.ts`, `src/app/auth/signout/route.ts`
-- Create: `middleware.ts`
+- Create: `src/middleware.ts`
 
 **Interfaces:**
 - Consumes: `createBrowserClient`, `createServerClient` (Task 4), `publicEnv` (Task 2)
@@ -711,7 +711,7 @@ LinkedIn is deliberately **not** an auth provider here. See spec §3.1: a revoke
 
 - [ ] **Step 1: Session-refresh middleware**
 
-Create `middleware.ts` at the repo root:
+Create `src/middleware.ts` (NOT the repo root — with a `src/` directory Next.js resolves middleware at `src/middleware.ts`, and a root file is silently ignored):
 
 ```ts
 import { createServerClient } from '@supabase/ssr'
@@ -787,11 +787,18 @@ export default function LoginPage() {
   }
 
   async function signInWithGoogle() {
+    setBusy(true)
+    setError(null)
     const supabase = createBrowserClient()
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${publicEnv.appUrl}/auth/callback` },
     })
+    // On success the browser navigates away, so this only runs on failure.
+    if (error) {
+      setError(error.message)
+      setBusy(false)
+    }
   }
 
   return (
@@ -847,10 +854,27 @@ Create `src/app/auth/callback/route.ts`:
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 
+/**
+ * `next` is attacker-controllable. Resolving it against our own origin and
+ * comparing origins rejects `//evil.com`, `https://evil.com`, and the
+ * `@evil.com` userinfo trick — which the WHATWG URL parser would otherwise
+ * read as a host, sending the user to an attacker's site the moment they
+ * finish signing in.
+ */
+export function safeNext(next: string | null, origin: string): string {
+  if (!next) return '/dashboard'
+  try {
+    const parsed = new URL(next, origin)
+    return parsed.origin === origin ? `${parsed.pathname}${parsed.search}` : '/dashboard'
+  } catch {
+    return '/dashboard'
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = safeNext(searchParams.get('next'), origin)
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)

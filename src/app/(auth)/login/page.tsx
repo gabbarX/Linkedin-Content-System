@@ -28,11 +28,20 @@ export default function LoginPage() {
   }
 
   async function signInWithGoogle() {
+    setBusy(true)
+    setError(null)
     const supabase = createBrowserClient()
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${publicEnv.appUrl}/auth/callback` },
     })
+    // On success the browser navigates away to Google immediately, so there
+    // is no "success" branch here to reset `busy` for — only the error path
+    // stays on this page.
+    if (error) {
+      setBusy(false)
+      setError(error.message)
+    }
   }
 
   return (
@@ -72,8 +81,8 @@ export default function LoginPage() {
         <span className="h-px flex-1 bg-[var(--color-border)]" />
       </div>
 
-      <Button variant="outline" onClick={signInWithGoogle} className="w-full">
-        Continue with Google
+      <Button variant="outline" onClick={signInWithGoogle} className="w-full" disabled={busy}>
+        {busy ? 'Redirecting…' : 'Continue with Google'}
       </Button>
     </main>
   )
