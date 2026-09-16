@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed:dev": "node scripts/seed-dev-user.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
