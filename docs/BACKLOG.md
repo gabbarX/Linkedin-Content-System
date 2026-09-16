@@ -100,79 +100,53 @@ unverified claim in a document written to be followed literally.
 **Trigger:** the first time anyone actually opens the CMA application form —
 correct the description to match what it really shows.
 
-## Auth — open defect
+## Auth
 
-**The magic link does not complete a sign-in.** Deferred deliberately on
-2026-09-16: noted, not fixed, to be resolved before production.
+**Fixed 2026-09-16: emailed links go through `/auth/confirm`, not the code
+exchange.** The first live attempt failed with `exchange_failed` — a `code` was
+present and the exchange rejected it — which ruled out Site URL, the redirect
+allowlist, and the implicit-flow case.
 
-*What was observed*, first live attempt at 15:50 on 2026-09-16:
+Investigation established that the browser writes the PKCE verifier correctly:
+polling `document.cookie` through a live `signInWithOtp` showed all three keys
+(`…-flow-<id>-code-verifier`, `…-flows-code-verifier`, `…-code-verifier`)
+written at t+16ms and cleaned up when the request failed. The cookie machinery
+was never the problem.
 
-- The email that arrived was Supabase's **"Confirm your email address"**
-  template — the *signup* template, not the magic-link one. Expected: the
-  address had never signed in, and `signInWithOtp` defaults to
-  `shouldCreateUser: true`.
-- Clicking it landed on `/login?error=exchange_failed`.
+The problem is structural, and it is worse than the one failure: **a PKCE code
+exchange can only complete in the browser that requested the link.** Request on
+a laptop, open the email on a phone, and it fails by design. `/auth/confirm`
+verifies a `token_hash` directly, needs no verifier, and works from any device —
+Supabase's documented pattern for server-side rendering.
 
-*What that narrows it to.* `exchange_failed`, not `missing_code`, means the
-callback **did** receive a `?code=` and `exchangeCodeForSession` rejected it.
-That rules out the whole family of "the link never reached our callback"
-causes — Site URL misconfiguration, a redirect-allowlist rejection, and the
-implicit-flow case where the token arrives in the URL fragment where no server
-can see it. The redirect chain works; the exchange does not.
+What was NOT pinned down: whether that specific click failed because it was
+opened in a different browser, or because the cookie was not sent on that
+redirect. Reproducing it needed a deliverable email address and was not worth
+sending mail to the owner's inbox, since the fix is the same either way.
 
-*Why the cause was not in the logs.* The callback discarded the `AuthError`
-entirely, so the only record of the failure was a redirect. That is now fixed
-— `src/app/auth/callback/route.ts` logs name, message, code and status before
-redirecting, and it interpolates them into the string rather than passing the
-error as an object, because `Error.name` and `Error.message` are
-non-enumerable and serialise to `{}` in the dev server log.
+**Also learned:** Supabase rejects non-deliverable domains outright.
+`dev@linkbud.example` was refused with "Email address is invalid", which is why
+the seeded dev user now takes a real address (`npm run seed:dev`).
 
-*Leading candidate — unverified, do not treat as diagnosed.* Driving the
-callback with a junk code during QA produced
-`AuthPKCECodeVerifierMissingError` (`pkce_code_verifier_not_found`, 400). That
-is the expected result for a request that never started a flow, so it is not
-evidence about the real failure — but it is the error the same code path
-raises, and the PKCE verifier is the one piece of state an emailed link can
-plausibly lose. Supabase's own SSR guidance for exactly this is to stop routing
-email links through `/auth/v1/verify` and instead template them as
-`{{ .TokenHash }}` against an `/auth/confirm` route that calls
-`verifyOtp({ type, token_hash })`, which removes the verifier dependency. If
-that is the fix it is one new route handler plus an email-template change in
-the Supabase dashboard.
+**Remaining, and it is the owner's step:** the Supabase email templates must
+point at `/auth/confirm` (`docs/ACCOUNTS.md` §9b). Until they do, the emailed
+link still carries the old URL and sign-in still fails.
 
-*How to reproduce without waiting on email.* Request a link, then read
-`.next/dev/logs/next-development.log` — the running dev server writes there,
-so the real `AuthError` is now recoverable without watching a terminal.
+## The first real sign-in still has not happened
 
-*What has since been ruled in.* The `handle_new_user()` trigger **works** —
-the profiles row for the 15:50 attempt exists, created by the signup itself.
-So the account was created correctly and only link verification failed. A
-retry will now send the *magic link* template rather than the signup one,
-because the user already exists.
+Much of the auth path has now executed, but not through the front door. The
+`handle_new_user()` trigger fires correctly (two accounts have been created by
+it), `verifyOtp` works against this project, the `(app)` guard redirects in both
+directions, and the whole onboarding flow has been walked end to end — all using
+a development-only route that has since been deleted.
 
-*And `verifyOtp({ type, token_hash })` works.* `/auth/dev-login` uses exactly
-that call server-side and issues a valid session against this same project.
-That is the mechanism the recommended fix depends on, now demonstrated rather
-than assumed.
+What has still never run: a user arriving at `/login`, typing their address,
+receiving an email, clicking the link, and landing signed in. That is one step
+away — the email templates in `docs/ACCOUNTS.md` §9b — and it is the only test
+that proves the real thing.
 
-**Trigger:** before the first real user. No longer blocks development — see
-`src/app/auth/dev-login/route.ts`.
-
-## Milestone 2, before any feature code
-
-**Work through `docs/ACCOUNTS.md` steps 7–12 and perform the first live sign-in.**
-This is the first action of Milestone 2, not something to fit in later. Nothing
-in the auth path has ever executed end to end: not the magic link, not Google
-OAuth, not the code exchange, not session refresh in `src/proxy.ts`, not RLS,
-not the `handle_new_user()` signup trigger. (The `(app)` layout guard *has* now
-executed — its signed-out branch redirects correctly — but only that branch.)
-
-**Unblocked by `/auth/dev-login`.** That route mints a real session for a
-seeded local account, so everything behind `(app)` is reachable and
-browser-verifiable again. It is scaffolding, not a feature: delete
-`src/app/auth/dev-login/` and the link on the login page the day the magic
-link works. Its guard is an allowlist on `NODE_ENV === 'development'`, covered
-by tests that assert every other value 404s.
+**Trigger:** before the first real user. Also before trusting any claim in this
+file about auth working.
 
 ## LLM
 
@@ -195,9 +169,3 @@ Three things follow, none of which is a problem today:
 
 **Trigger:** the first paying customer, or the first 429 from the writer.
 
-## Scaffolding to remove
-
-**`/auth/dev-login` and the dev link on the login page.** Both exist only
-because the magic link does not work.
-**Trigger:** the first successful real sign-in. Delete both, and the
-`dev@linkbud.example` user with them.

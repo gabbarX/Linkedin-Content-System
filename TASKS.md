@@ -87,19 +87,18 @@ public Data API. See the amendments in spec §3 and §5.
 
 **Do these two first, before any feature code:**
 
-- [!] **Auth is broken — the magic link does not complete a sign-in.** Attempted
-      live on 2026-09-16: the emailed link lands on `/login?error=exchange_failed`,
-      meaning the callback received a `?code=` and Supabase rejected the exchange.
-      Deferred by decision, to be fixed before production. Full evidence, what it
-      rules out, and the leading candidate are in `docs/BACKLOG.md`.
-      **Unblocked for development** by `/auth/dev-login` (scaffolding — delete
-      it when auth works). Since narrowed further: the `handle_new_user()`
-      trigger fires correctly and `verifyOtp({ token_hash })` issues a valid
-      session, so only the emailed link's verification is broken.
-- [ ] **Complete `docs/ACCOUNTS.md` steps 7-12 and perform the first live sign-in.**
-      Still the test that matters. Nothing in the auth path has executed end to
-      end — not the magic link, not Google OAuth, not the code exchange, not
-      session refresh, not RLS, not the signup trigger.
+- [x] **Auth rebuilt on `/auth/confirm`.** The emailed link now carries a
+      `token_hash` verified server-side, which needs no PKCE verifier and works
+      from a different device than requested it — the code exchange never could.
+      `/auth/callback` is kept for Google OAuth, where it is correct.
+      `/auth/dev-login` and its seeded fixture user are deleted.
+- [!] **YOU: point the Supabase email templates at `/auth/confirm`.**
+      `docs/ACCOUNTS.md` §9b has the exact strings. Until this is done the
+      emailed link still carries the old URL and **nobody can sign in.**
+- [ ] **Perform the first live sign-in.** Still the test that matters, and still
+      not done: no one has yet arrived at `/login`, received an email, clicked it
+      and landed signed in. Everything else in the auth path has now run.
+- [ ] Seed your account in a fresh environment with `npm run seed:dev -- you@…`
 - [x] **Close the spec §7 gap** — `.claude/hooks/commit-gate.mjs` is a `PreToolUse`
       hook that runs the full gate before any `git commit` and exits 2 to block on
       failure. Verified end to end: allows on green, blocks on red, escape hatch

@@ -43,7 +43,9 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 | `src/app/globals.css` | `--lb-*` design tokens, `@theme inline` mapping, shadcn reconciliation |
 | `src/app/page.tsx` | Public landing placeholder |
 | `src/app/(auth)/login/page.tsx` | Magic link + Google sign-in |
-| `src/app/auth/callback/route.ts` | Code exchange; redirect target validated by `safeNext` |
+| `src/app/auth/confirm/route.ts` | **Every emailed link lands here** — magic link, signup, recovery, email change. Verifies a `token_hash`, so it needs no PKCE verifier and works from a different device than requested the link. The Supabase email templates must point here (`docs/ACCOUNTS.md` §9b). |
+| `src/app/auth/callback/route.ts` | Google OAuth return only. Code exchange is correct there because the flow starts and ends in one browser. Redirect target validated by `safeNext`. |
+| `scripts/seed-dev-user.mjs` | `npm run seed:dev -- you@yourdomain.com`. Creates a confirmed account so a fresh environment has one to sign in as. |
 | `src/app/auth/signout/route.ts` | `POST` only, 303 to `/login` |
 | `src/app/(app)/layout.tsx` | Authenticated shell + session guard (redirects to `/login`) |
 | `src/app/(app)/dashboard/page.tsx` | Three-band dashboard skeleton |

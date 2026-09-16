@@ -150,10 +150,53 @@ Everything from here needs a live database.
 - Under **Redirect URLs**, add — exactly, including the path:
   - `http://localhost:3000/auth/callback`
   - `https://yourdomain.com/auth/callback` (add this now even though the domain is not live yet)
+  - `http://localhost:3000/auth/confirm`
+  - `https://yourdomain.com/auth/confirm`
 
 That path is what `src/app/auth/callback/route.ts` serves and what the login page sends users to. A typo here produces a sign-in link that lands on an error page with no useful message.
 
-**Check it worked:** both URLs appear in the redirect list after saving.
+**Check it worked:** all four URLs appear in the redirect list after saving.
+
+### 9b. Point the email templates at `/auth/confirm` — required
+
+**Without this step nobody can sign in.** Supabase's stock templates use
+`{{ .ConfirmationURL }}`, which routes the link through Supabase's own
+`/auth/v1/verify` and hands our app a PKCE `code`. Exchanging that code needs a
+verifier stored in the browser that *requested* the link — so the link only ever
+works in that one browser, and fails when someone requests it on a laptop and
+opens the email on a phone. That is what broke the first live sign-in attempt.
+
+`/auth/confirm` verifies a `token_hash` instead, which needs no verifier and
+works from any device.
+
+Supabase dashboard → **Authentication → Emails** (templates). Edit **Magic Link**
+and **Confirm signup**. In each, replace the `href` on the link with:
+
+**Magic Link**
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink
+```
+
+**Confirm signup**
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup
+```
+
+Leave the rest of each template alone — only the link target changes. If you
+later enable password recovery or email change, those templates take
+`type=recovery` and `type=email_change` respectively; the route already accepts
+both.
+
+`{{ .TokenHash }}` is the important part. `{{ .ConfirmationURL }}` is the value
+to remove.
+
+**Check it worked:** request a link from `/login`, open it, and you land signed
+in on `/dashboard`. If you land on `/login` with "That sign-in link wasn't
+readable", the template is still wrong — the route logs the exact reason, so
+check the dev server output. If you get "That link has expired", the template is
+right and the token was simply stale or already used; request another.
 
 ## 10. Google sign-in
 
