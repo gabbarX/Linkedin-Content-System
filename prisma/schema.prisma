@@ -18,4 +18,64 @@ model profiles {
   onboarding_step     String   @default("interview")
   created_at          DateTime @default(now()) @db.Timestamptz(6)
   updated_at          DateTime @default(now()) @db.Timestamptz(6)
+  interview_draft     Json?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model business_profiles {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @unique @db.Uuid
+  offer          String
+  price_band     String?
+  icp            String
+  transformation String
+  proof          String?
+  point_of_view  String?
+  taboos         String[] @default([])
+  cta_target     String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model voice_profiles {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @unique @db.Uuid
+  avg_sentence_length Decimal?  @db.Decimal(5, 2)
+  max_sentence_length Int?
+  avg_paragraph_lines Decimal?  @db.Decimal(5, 2)
+  sentence_rhythm     String    @default("varied")
+  line_break_style    String    @default("grouped")
+  emoji_policy        String    @default("none")
+  hashtag_policy      String    @default("none")
+  pov_strength        String    @default("balanced")
+  humour_level        String    @default("none")
+  formality           String    @default("conversational")
+  opener_patterns     String[]  @default([])
+  closer_patterns     String[]  @default([])
+  vocabulary_markers  String[]  @default([])
+  banned_phrases      String[]  @default([])
+  derived_at          DateTime? @db.Timestamptz(6)
+  user_edited         Boolean   @default(false)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model writing_samples {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @db.Uuid
+  content       String
+  source        String   @default("pasted")
+  word_count    Int      @default(0)
+  char_count    Int      @default(0)
+  line_count    Int      @default(0)
+  emoji_count   Int      @default(0)
+  hashtag_count Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id])
 }
