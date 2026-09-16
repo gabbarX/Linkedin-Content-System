@@ -19,6 +19,24 @@ const CALLBACK_ERRORS: Record<string, string> = {
     'We could not complete that sign-in. Request a new link below.',
 }
 
+/** Shown to the visitor in place of the raw error thrown by getPublicEnv() —
+ * that error names which environment variables are missing, which is
+ * developer diagnostics, not something a visitor can act on. */
+const CONFIG_ERROR_MESSAGE =
+  "Sign-in isn't available right now. Please try again in a moment."
+
+/**
+ * `createBrowserClient()` throws (rather than returning an error object) when
+ * the NEXT_PUBLIC_* Supabase values are missing or malformed — an
+ * environment/configuration problem, not a Supabase auth outcome. Logging it
+ * here keeps the full detail one keystroke away in devtools while the caller
+ * shows the visitor a plain sentence instead.
+ */
+function handleConfigError(cause: unknown): string {
+  console.error('LinkBud: Supabase client failed to initialize', cause)
+  return CONFIG_ERROR_MESSAGE
+}
+
 /**
  * Split out because useSearchParams() opts a component into client-side
  * rendering, and the App Router requires a Suspense boundary above it so the
@@ -57,7 +75,7 @@ export default function LoginPage() {
       supabase = createBrowserClient()
     } catch (cause) {
       setBusy(false)
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setError(handleConfigError(cause))
       return
     }
     const { error } = await supabase.auth.signInWithOtp({
@@ -77,7 +95,7 @@ export default function LoginPage() {
       supabase = createBrowserClient()
     } catch (cause) {
       setBusy(false)
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setError(handleConfigError(cause))
       return
     }
     const { error } = await supabase.auth.signInWithOAuth({
