@@ -100,16 +100,3 @@ guard, not RLS, not the `handle_new_user()` signup trigger. Tasks 4–6 were
 reviewed and verified offline — typecheck, lint, build, unit tests — because no
 Supabase project existed. That first real sign-in is the only test those three
 tasks have not had, and it is the one that matters.
-
-**Spec §7 is currently unmet.**
-It requires the quality gate be *"enforced by a hook, not by discipline"*. The
-shipped `Stop` hook (`.claude/hooks/quality-gate.mjs`) is advisory only — it
-always exits 0 and prints typecheck failures — because Claude Code 2.1.224
-documents no loop-safe signal for `Stop`, and a hook that might loop is worse
-than one that only informs.
-
-A `PreToolUse` hook matching `Bash` commands containing `git commit` and exiting
-2 to block has no loop risk (it fires on a tool call, not on turn end) and
-satisfies §7 exactly: nothing can be committed without the gate passing.
-**Trigger:** implement it in Milestone 2. Until then the spec and the repo
-disagree, and the spec is the binding authority.

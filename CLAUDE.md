@@ -61,6 +61,8 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 
 `npm run verify` = `typecheck && lint && test && build`. **It must pass before any commit.** Not "usually", not "unless the change is docs-only". If it fails, fix the cause; do not weaken a lint rule, add `// @ts-expect-error`, or set `ignoreBuildErrors` to get past it.
 
+**It is enforced, not trusted.** `.claude/hooks/commit-gate.mjs` is a `PreToolUse` hook that runs the full gate before any `git commit` and blocks the commit if it fails. There is a deliberate escape hatch — `LINKBUD_SKIP_GATE=1 git commit ...` — which prints a warning; if you use it, say so in your report, because that commit is unverified. The hook scrubs `ELECTRON_RUN_AS_NODE` and `VSCODE_*` before running, because those leak from the VS Code extension host and change tooling behaviour, and a gate that disagrees with your terminal is worse than no gate.
+
 The app builds with no Supabase credentials present and must keep doing so — that is why `getServerEnv()` and `getPublicEnv()` are only ever called inside function bodies, never at module scope. Do not move an env read to module scope.
 
 ## Verify in a browser before shipping

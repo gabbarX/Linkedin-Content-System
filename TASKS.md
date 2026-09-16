@@ -62,9 +62,12 @@ pole on carousels and the whole analytics loop. Full instructions in
       OAuth, not the code exchange, not session refresh, not the `(app)` guard, not
       RLS, not the signup trigger. Milestone 1 verified them offline only. This is
       the test that matters.
-- [ ] **Close the spec §7 gap** — a `PreToolUse` hook on `git commit` that exits 2
-      when `npm run verify` fails. The shipped `Stop` hook is advisory only, so the
-      gate is currently enforced by discipline, which the spec forbids.
+- [x] **Close the spec §7 gap** — `.claude/hooks/commit-gate.mjs` is a `PreToolUse`
+      hook that runs the full gate before any `git commit` and exits 2 to block on
+      failure. Verified end to end: allows on green, blocks on red, escape hatch
+      warns. Fixed a latent defect found on the way — `vitest.config.ts` used ESM
+      syntax in a file Node loads as CommonJS, which broke under Vite's native
+      config loader; it is now `vitest.config.mts`.
 
 Then:
 
