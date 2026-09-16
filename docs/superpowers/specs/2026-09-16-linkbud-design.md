@@ -270,15 +270,30 @@ Explicitly banned: purple/indigo gradients, glassmorphism, neon on dark, emoji a
 |---|---|---|
 | 0 | Accounts | Incorporate, domain, business email, LinkedIn Page, LinkedIn App A (Share on LinkedIn), LinkedIn App B + CMA application filed, Stripe, Resend |
 | 1 | Foundation | Scaffold, Supabase schema + RLS, auth, app shell, design system |
-| 2 | Onboarding | Interview, sample paste, Voice Profile, Business Profile, both editable |
+| 2 | Onboarding | **LLM gateway**, interview, sample paste, Voice Profile, Business Profile, both editable |
 | 3 | Strategy | Pillars, 12-week arc, dated slots at chosen cadence, calendar view |
 | 4 | Paywall | Stripe, trial, gating after strategy |
-| 5 | Writer | Brief, 3 variants, editor with LinkedIn-accurate preview |
+| 5 | Writer | Brief, 3 variants, editor with LinkedIn-accurate preview (gateway already built in M2) |
 | 6 | Jobs + Publisher | Jobs table, cron, Share on LinkedIn adapter, approve-then-publish, nudges |
 | 7 | Attribution | Short links, click log, outcome prompt |
 | 8 | Radar | Daily trend job, dashboard band, one-tap draft |
 | 9 | Learnings | Nightly synthesis, visible learning records |
 | 10 | v2 (on CMA approval) | Analytics ingest, carousel studio, performance-weighted exemplars |
+
+*Amended 2026-09-16.* The LLM gateway moved from Milestone 5 to Milestone 2.
+As written, this order could not be followed: §4.1 requires
+`deriveVoiceProfile(samples)` in Milestone 2 and §4.2 requires
+`generateStrategy(business, voice)` in Milestone 3, both of which need a model,
+while the gateway was not scheduled until Milestone 5. Milestone 5 now builds
+the writer on a gateway that already exists rather than introducing one.
+
+Two consequences follow. The gateway becomes a Milestone 2 dependency, so
+`OPENROUTER_API_KEY` is required from Milestone 2 rather than Milestone 5. And
+the numeric Voice Profile fields — average and maximum sentence length, and
+the emoji, hashtag and line-break counts — are computed in code rather than
+asked of the model: they are arithmetic over the samples, the writer depends on
+them being right, and counting is a known weakness of language models. The
+model supplies the judgement fields it is actually suited to.
 
 Milestone 0 runs in parallel from day one. The CMA application has a reported 3–4 month turnaround with no SLA, so it must be filed before any code that depends on it is planned.
 
