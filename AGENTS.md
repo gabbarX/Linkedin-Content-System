@@ -1,3 +1,5 @@
+The working agreement for this repository is [`CLAUDE.md`](./CLAUDE.md). Read it first; everything below is tool-generated boilerplate, kept only because `next dev` rewrites it on every run.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
