@@ -162,18 +162,66 @@ export async function getVoiceProfile(
 }
 
 /**
+ * Thrown by `saveDerivedVoiceProfile` when it refuses to overwrite a
+ * profile the user has already edited (`user_edited = true`) and the
+ * caller has not explicitly opted in via `{ overwriteUserEdited: true }`
+ * (I1b). A caller that legitimately wants to replace an edited profile
+ * must say so at its own call site rather than this function silently
+ * doing it by default.
+ */
+export class VoiceProfileEditedError extends Error {
+  constructor(userId: string) {
+    super(`Refusing to overwrite the user-edited voice profile for user ${userId}`)
+    this.name = 'VoiceProfileEditedError'
+  }
+}
+
+export type SaveDerivedVoiceProfileOptions = {
+  /**
+   * Overwrite a profile with `user_edited = true` anyway. Defaults to
+   * `false`: spec §4.1's editability guarantee ("a later re-derivation
+   * knows not to silently overwrite a human decision") is only real if the
+   * default behaviour actually refuses. No caller on this branch passes
+   * `true` -- the samples step (the only caller) only ever derives before
+   * the user has had a chance to reach the voice step and edit anything,
+   * and I1a's page guards stop a finished user from reaching the samples
+   * step again to retrigger it. This flag exists so a future caller that
+   * genuinely needs to replace an edited profile (e.g. an explicit
+   * "re-derive from scratch" settings action) can say so, rather than the
+   * refusal below having no escape hatch at all.
+   */
+  overwriteUserEdited?: boolean
+}
+
+/**
  * Write the output of a derivation.
  *
- * Deliberately does not touch user_edited: this records what the machine
- * decided, and whether a human has since disagreed is a separate fact. Callers
- * that re-derive must check userEdited themselves before overwriting — spec
- * §4.1's editability guarantee is only real if a re-run cannot silently undo
- * what the user chose.
+ * Refuses to overwrite a profile with `user_edited = true` unless the
+ * caller passes `{ overwriteUserEdited: true }` -- throwing
+ * `VoiceProfileEditedError` instead (I1b). A re-derivation must not
+ * silently undo a human's editing decision; this was previously left to
+ * "callers must check `userEdited` themselves", which nothing on this
+ * branch actually did.
+ *
+ * When it does write, this still does not itself touch `user_edited`
+ * either way: this records what the machine decided, and whether a human
+ * has since disagreed is a separate fact, set only by `updateVoiceProfile`.
  */
 export async function saveDerivedVoiceProfile(
   userId: string,
   derived: DerivedVoiceProfile,
+  options: SaveDerivedVoiceProfileOptions = {},
 ): Promise<VoiceProfile> {
+  if (!options.overwriteUserEdited) {
+    const existing = await getPrisma().voice_profiles.findUnique({
+      where: { user_id: userId },
+      select: { user_edited: true },
+    })
+    if (existing?.user_edited) {
+      throw new VoiceProfileEditedError(userId)
+    }
+  }
+
   const fields = {
     avg_sentence_length: derived.avgSentenceLength,
     max_sentence_length: derived.maxSentenceLength,

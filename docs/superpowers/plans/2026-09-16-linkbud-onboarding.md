@@ -280,9 +280,14 @@ These are pure functions over text, so they are properly testable — unlike the
 
 ```ts
 it('measures average and maximum sentence length in words', () => {
+  // "Short one." is 2 words; the second sentence is 8. Corrected during
+  // execution: this originally read 5.5 and 9, which is what you get if the
+  // whitespace run after a full stop is counted as a word. An implementer
+  // reproduced those numbers faithfully and inflated every sentence length in
+  // production to do it. Derive fixture values by hand.
   const m = measureSamples(['Short one. This sentence is noticeably longer than that one.'])
-  expect(m.avgSentenceLength).toBeCloseTo(5.5, 1)
-  expect(m.maxSentenceLength).toBe(9)
+  expect(m.avgSentenceLength).toBeCloseTo(5, 1)
+  expect(m.maxSentenceLength).toBe(8)
 })
 
 it('counts emoji by code point, not by UTF-16 unit', () => {

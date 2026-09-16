@@ -136,6 +136,23 @@ Do not do any of these unilaterally. Stop, explain the options, and wait:
 - **Anything that would weaken a LinkedIn constraint above**, including "just for testing"
 - **Anything that changes the shape of `LinkedInAdapter`** — three adapters implement it
 
+## Two patterns that cost Milestone 2 four review rounds each
+
+**A validation boundary must be complete, or it is not a boundary.** Four separate
+reviews found the same shape: a guard applied to some fields and not others — the model
+call guarded but not the writes around it, seven enums guarded but not four arrays, one
+array guarded but not seven scalars. Each fix was correct and the next author reproduced
+the shape one field-type over. A server action is a public HTTP endpoint: a `<select>`
+constrains a cooperative browser, not a crafted POST. When you add a guard, make the
+*next* field safe by construction — iterate a derived list rather than a hand-written one
+— so the boundary cannot be half-applied by someone who simply did not think of it.
+
+**`as` is not a loophole for `!`.** Three consecutive reviews flagged a cast whose only
+job was to quiet the compiler. `(allowed as readonly string[]).includes(v)` and
+`x as unknown as T` are the same act as `x!` and are banned for the same reason: they
+assert a fact instead of earning it. `allowed.some(o => o === v)` narrows identically
+with no cast. If a cast is genuinely unavoidable, say in a comment what makes it true.
+
 ## Two things that have already tripped an implementer
 
 - `Button` is Base UI-backed and has **no `asChild` prop**. To render a link: `<Button render={<Link href="/login" />}>Get started</Button>`.
