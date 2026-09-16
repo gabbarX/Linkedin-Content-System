@@ -174,6 +174,27 @@ browser-verifiable again. It is scaffolding, not a feature: delete
 link works. Its guard is an allowlist on `NODE_ENV === 'development'`, covered
 by tests that assert every other value 404s.
 
+## LLM
+
+**The default model is a free one, with the constraints that implies.**
+`nvidia/nemotron-3-super-120b-a12b:free`, pinned in `src/server/llm/client.ts`.
+Three things follow, none of which is a problem today:
+
+1. **Free model IDs are withdrawn without notice.** If the gateway starts
+   returning 404, re-run the selection against
+   `https://openrouter.ai/api/v1/models` rather than reaching for a paid model
+   by reflex — the selection method is recorded in the module comment.
+2. **Free endpoints are rate-limited by request count and queue.** Measured
+   8–12s per call. Onboarding makes one call per user and can show a pending
+   state; Milestone 5's writer makes three per post and will feel this first.
+3. **Free endpoints generally carry a training-data policy.** Prompts sent to
+   them may be used by providers for training, and what LinkBud sends is the
+   customer's offer, ICP, proof points and writing samples. That is acceptable
+   for a founder testing their own account and is a decision to revisit before
+   the first paying customer.
+
+**Trigger:** the first paying customer, or the first 429 from the writer.
+
 ## Scaffolding to remove
 
 **`/auth/dev-login` and the dev link on the login page.** Both exist only

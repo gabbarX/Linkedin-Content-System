@@ -123,10 +123,14 @@ Then — plan written: `docs/superpowers/plans/2026-09-16-linkbud-onboarding.md`
 gateway pulled forward into this milestone (spec §8 amended), one interview
 question per screen.
 
-- [!] **`OPENROUTER_API_KEY` is required before Task 4 can run.** Currently blank.
-- [ ] Migration 0003 — `business_profiles`, `voice_profiles`, `writing_samples`,
+- [x] **`OPENROUTER_API_KEY`** set and verified with a real call
+- [x] Migration 0003 — `business_profiles`, `voice_profiles`, `writing_samples`,
       plus `profiles.interview_draft` for a resumable interview
-- [ ] The OpenRouter gateway (`src/server/llm`) — moved here from Milestone 5
+- [x] Onboarding repositories, `userId`-first; union types checked against the
+      live check constraints
+- [x] The OpenRouter gateway (`src/server/llm`) — moved here from Milestone 5.
+      Sends the Zod schema as strict `json_schema`; verified live. Free models
+      are slow and rate-limited — see `docs/BACKLOG.md`.
 - [ ] Guided interview — offer, ICP, transformation, proof, POV, taboos, CTA target, cadence, timezone
 - [ ] Writing-sample paste (5-10 posts, or 2 written fresh)
 - [ ] Derive the **Voice Profile** (sentence rhythm, openers, line breaks, vocabulary, emoji/hashtag policy, banned phrases)
