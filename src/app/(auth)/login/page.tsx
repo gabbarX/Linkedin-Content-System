@@ -155,6 +155,18 @@ export default function LoginPage() {
       <Button variant="outline" onClick={signInWithGoogle} className="w-full" disabled={busy}>
         {busy ? 'Redirecting…' : 'Continue with Google'}
       </Button>
+
+      {/* Scaffolding while the magic link is broken. Next inlines NODE_ENV at
+          build time, so this block is not merely hidden in production -- it is
+          absent from the bundle, and the route behind it 404s there anyway. */}
+      {process.env.NODE_ENV === 'development' && (
+        <a
+          href="/auth/dev-login"
+          className="mt-8 text-center text-sm text-[var(--color-text-muted)] underline underline-offset-4 hover:text-[var(--color-text)]"
+        >
+          Dev sign-in (local only)
+        </a>
+      )}
     </main>
   )
 }

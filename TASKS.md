@@ -79,8 +79,9 @@ public Data API. See the amendments in spec §3 and §5.
       sites are auth (`signInWithOtp`, `signInWithOAuth`, `exchangeCodeForSession`,
       `getUser`, `signOut`). Every query goes through Prisma. `admin.ts` is
       retained unused for service-role work that has no auth equivalent.
-- [ ] Verify the layout's **signed-in** branch in a browser — blocked on auth
-      (see below). Only the signed-out redirect has been exercised.
+- [x] Verify the layout's **signed-in** branch in a browser — done via
+      `/auth/dev-login`; the shell renders and the nav falls back to the account
+      email because `full_name` is null
 
 ## Milestone 2 — onboarding
 
@@ -91,8 +92,10 @@ public Data API. See the amendments in spec §3 and §5.
       meaning the callback received a `?code=` and Supabase rejected the exchange.
       Deferred by decision, to be fixed before production. Full evidence, what it
       rules out, and the leading candidate are in `docs/BACKLOG.md`.
-      **This also blocks browser verification of everything behind `(app)`**,
-      including all of Milestone 2 below — not just production.
+      **Unblocked for development** by `/auth/dev-login` (scaffolding — delete
+      it when auth works). Since narrowed further: the `handle_new_user()`
+      trigger fires correctly and `verifyOtp({ token_hash })` issues a valid
+      session, so only the emailed link's verification is broken.
 - [ ] **Complete `docs/ACCOUNTS.md` steps 7-12 and perform the first live sign-in.**
       Still the test that matters. Nothing in the auth path has executed end to
       end — not the magic link, not Google OAuth, not the code exchange, not
@@ -103,6 +106,17 @@ public Data API. See the amendments in spec §3 and §5.
       warns. Fixed a latent defect found on the way — `vitest.config.ts` used ESM
       syntax in a file Node loads as CommonJS, which broke under Vite's native
       config loader; it is now `vitest.config.mts`.
+
+Verified along the way (first time any of it has executed):
+
+- [x] `handle_new_user()` creates the profiles row on signup — two rows present
+- [x] The database defaults land as specified: `UTC`, cadence 3, 08:00, `interview`
+- [x] The profile repository reads a real row through Prisma in a request path
+- [x] Fixed: blank `.env` values read as invalid rather than unset, so
+      `getServerEnv()` threw on every server-side read. `.env.example` ships ten
+      keys as `KEY=`, so following the setup instructions produced it. This was
+      invisible until the first `getServerEnv()` call in a request path — it
+      would have blocked all of Milestone 2.
 
 Then:
 

@@ -144,8 +144,19 @@ the Supabase dashboard.
 `.next/dev/logs/next-development.log` — the running dev server writes there,
 so the real `AuthError` is now recoverable without watching a terminal.
 
-**Trigger:** before the first real user, and before anything behind `(app)`
-can be browser-verified — see the note below.
+*What has since been ruled in.* The `handle_new_user()` trigger **works** —
+the profiles row for the 15:50 attempt exists, created by the signup itself.
+So the account was created correctly and only link verification failed. A
+retry will now send the *magic link* template rather than the signup one,
+because the user already exists.
+
+*And `verifyOtp({ type, token_hash })` works.* `/auth/dev-login` uses exactly
+that call server-side and issues a valid session against this same project.
+That is the mechanism the recommended fix depends on, now demonstrated rather
+than assumed.
+
+**Trigger:** before the first real user. No longer blocks development — see
+`src/app/auth/dev-login/route.ts`.
 
 ## Milestone 2, before any feature code
 
@@ -156,10 +167,16 @@ OAuth, not the code exchange, not session refresh in `src/proxy.ts`, not RLS,
 not the `handle_new_user()` signup trigger. (The `(app)` layout guard *has* now
 executed — its signed-out branch redirects correctly — but only that branch.)
 
-**While auth is broken, nothing behind `(app)` can be browser-verified.** This
-is the part that is easy to underestimate: it is not only production that is
-blocked. `CLAUDE.md` requires browser verification before shipping, and the
-authenticated shell, the dashboard, and the whole of Milestone 2's onboarding
-flow are unreachable without a session. Changes to them can be typechecked,
-linted, unit-tested and built, and that is all. Every such change is shipping
-with its runtime behaviour untested until the first live sign-in works.
+**Unblocked by `/auth/dev-login`.** That route mints a real session for a
+seeded local account, so everything behind `(app)` is reachable and
+browser-verifiable again. It is scaffolding, not a feature: delete
+`src/app/auth/dev-login/` and the link on the login page the day the magic
+link works. Its guard is an allowlist on `NODE_ENV === 'development'`, covered
+by tests that assert every other value 404s.
+
+## Scaffolding to remove
+
+**`/auth/dev-login` and the dev link on the login page.** Both exist only
+because the magic link does not work.
+**Trigger:** the first successful real sign-in. Delete both, and the
+`dev@linkbud.example` user with them.
