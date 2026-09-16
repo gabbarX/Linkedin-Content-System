@@ -131,7 +131,13 @@ question per screen.
 - [x] The OpenRouter gateway (`src/server/llm`) — moved here from Milestone 5.
       Sends the Zod schema as strict `json_schema`; verified live. Free models
       are slow and rate-limited — see `docs/BACKLOG.md`.
-- [ ] Guided interview — offer, ICP, transformation, proof, POV, taboos, CTA target, cadence, timezone
+- [x] Guided interview — offer, ICP, transformation, proof, POV, taboos, CTA target, cadence, timezone.
+      One question per screen (`/onboarding/interview?q=N`), progress shown as dots.
+      Every advance persists to `profiles.interview_draft`; closing the tab and
+      reopening the bare URL resumes at the furthest question reached. The final
+      advance validates the whole draft, writes `business_profiles` and the
+      cadence/time/timezone onto `profiles`, clears the draft, and sets
+      `onboarding_step = 'samples'`. Browser-verified end to end, both widths.
 - [ ] Writing-sample paste (5-10 posts, or 2 written fresh)
 - [ ] Derive the **Voice Profile** (sentence rhythm, openers, line breaks, vocabulary, emoji/hashtag policy, banned phrases)
 - [ ] Derive the **Business Profile**
