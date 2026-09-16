@@ -3,26 +3,6 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getPublicEnv, publicEnv } from '@/lib/env'
 
 export async function proxy(request: NextRequest) {
-  // (app)/layout.tsx redirects an incomplete user to their onboarding step,
-  // but must not do that when the request is already for an onboarding
-  // route — Server Components cannot read the current pathname themselves
-  // (see the Next.js docs on usePathname: "Reading the current URL from a
-  // Server Component is not supported"). Forwarding it as a request header
-  // is the documented way to pass that one piece of routing data upstream
-  // (see the NextResponse.next({ request: { headers } }) example in the
-  // Next.js docs). This is plumbing, not a routing decision — the proxy
-  // still makes none; (app)/layout.tsx does, exactly as before.
-  //
-  // Built fresh from `request.headers` every time it's called, rather than
-  // snapshotted once, because `request.cookies.set()` below mutates
-  // `request.headers` in place and the cookie-refresh flow depends on each
-  // `NextResponse.next({ request })` picking up that latest state.
-  const withPathname = () => {
-    const headers = new Headers(request.headers)
-    headers.set('x-pathname', request.nextUrl.pathname)
-    return { headers }
-  }
-
   // No credentials configured: there is no session to refresh, and
   // @supabase/ssr throws on empty ones. Bail out before constructing the
   // client so a clone with no .env.local still serves the public pages
@@ -30,7 +10,7 @@ export async function proxy(request: NextRequest) {
   // does not need to agree exactly with getPublicEnv()'s schema, because
   // the try/catch below is what actually guarantees we never 500.
   if (!publicEnv.supabaseUrl || !publicEnv.supabaseAnonKey) {
-    return NextResponse.next({ request: withPathname() })
+    return NextResponse.next({ request })
   }
 
   // publicSchema validates a third value (NEXT_PUBLIC_APP_URL) that the
@@ -45,10 +25,10 @@ export async function proxy(request: NextRequest) {
     env = getPublicEnv()
   } catch (error) {
     console.warn('proxy: getPublicEnv() failed, skipping session refresh', error)
-    return NextResponse.next({ request: withPathname() })
+    return NextResponse.next({ request })
   }
 
-  let response = NextResponse.next({ request: withPathname() })
+  let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -62,7 +42,7 @@ export async function proxy(request: NextRequest) {
           for (const { name, value } of cookiesToSet) {
             request.cookies.set(name, value)
           }
-          response = NextResponse.next({ request: withPathname() })
+          response = NextResponse.next({ request })
           for (const { name, value, options } of cookiesToSet) {
             response.cookies.set(name, value, options)
           }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ONBOARDING_STEPS } from '@/server/db/repositories/profiles'
-import { isComplete, nextStep, routeForStep } from './steps'
+import { isComplete, nextStep, onboardingRouteFor, routeForStep } from './steps'
 
 describe('routeForStep', () => {
   it('routes each step this milestone builds a page for to that page', () => {
@@ -56,6 +56,38 @@ describe('isComplete', () => {
   it('is true only for done', () => {
     for (const step of ONBOARDING_STEPS) {
       expect(isComplete(step)).toBe(step === 'done')
+    }
+  })
+})
+
+describe('onboardingRouteFor', () => {
+  it('names the onboarding page for each step this milestone built one for', () => {
+    expect(onboardingRouteFor('interview')).toBe('/onboarding/interview')
+    expect(onboardingRouteFor('samples')).toBe('/onboarding/samples')
+    expect(onboardingRouteFor('voice')).toBe('/onboarding/voice')
+  })
+
+  // Ruling R8: strategy and paywall must be null, not routeForStep's
+  // '/dashboard' fallback — (app)/(onboarded)/layout.tsx redirects only when
+  // this returns non-null, so a null here is what stops it from redirecting
+  // a strategy/paywall user away from the one route (the dashboard) they're
+  // actually allowed on.
+  it('is null for strategy, paywall and done — nothing to force the user onto', () => {
+    expect(onboardingRouteFor('strategy')).toBeNull()
+    expect(onboardingRouteFor('paywall')).toBeNull()
+    expect(onboardingRouteFor('done')).toBeNull()
+  })
+
+  // The invariant that actually matters, restated in terms of the function
+  // (onboarded)/layout.tsx calls: for every step this milestone built a page
+  // for, there is something to redirect to, so the guard fires. This is what
+  // makes "a user who has not finished the interview cannot reach the
+  // dashboard" true in the running app, not just in routeForStep's output.
+  it('is truthy for every step short of done except strategy and paywall', () => {
+    const stepsWithNoPageYet = new Set(['strategy', 'paywall', 'done'])
+    for (const step of ONBOARDING_STEPS) {
+      if (stepsWithNoPageYet.has(step)) continue
+      expect(onboardingRouteFor(step)).toBeTruthy()
     }
   })
 })
