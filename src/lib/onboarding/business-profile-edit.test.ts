@@ -176,6 +176,42 @@ describe('parseBusinessProfileFormValues', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects a null value for a required scalar field from a crafted request, as a typed rejection not a throw', () => {
+    expect(() =>
+      parseBusinessProfileFormValues(validForm({ offer: null as unknown as string })),
+    ).not.toThrow()
+    const result = parseBusinessProfileFormValues(validForm({ offer: null as unknown as string }))
+    expect(result).toEqual({ success: false, message: 'The "offer" field must be text.' })
+  })
+
+  it('rejects a numeric value for a required scalar field from a crafted request, as a typed rejection not a throw', () => {
+    expect(() =>
+      parseBusinessProfileFormValues(validForm({ transformation: 42 as unknown as string })),
+    ).not.toThrow()
+    const result = parseBusinessProfileFormValues(
+      validForm({ transformation: 42 as unknown as string }),
+    )
+    expect(result).toEqual({ success: false, message: 'The "transformation" field must be text.' })
+  })
+
+  it('rejects a null value for an optional scalar field from a crafted request, as a typed rejection not a throw', () => {
+    expect(() =>
+      parseBusinessProfileFormValues(validForm({ priceBand: null as unknown as string })),
+    ).not.toThrow()
+    const result = parseBusinessProfileFormValues(
+      validForm({ priceBand: null as unknown as string }),
+    )
+    expect(result).toEqual({ success: false, message: 'The "priceBand" field must be text.' })
+  })
+
+  it('rejects a numeric value for an optional scalar field from a crafted request, as a typed rejection not a throw', () => {
+    expect(() =>
+      parseBusinessProfileFormValues(validForm({ ctaTarget: 7 as unknown as string })),
+    ).not.toThrow()
+    const result = parseBusinessProfileFormValues(validForm({ ctaTarget: 7 as unknown as string }))
+    expect(result).toEqual({ success: false, message: 'The "ctaTarget" field must be text.' })
+  })
+
   it('rejects a non-array taboos value from a crafted request', () => {
     const result = parseBusinessProfileFormValues(
       validForm({ taboos: 'politics' as unknown as string[] }),

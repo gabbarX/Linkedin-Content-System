@@ -140,6 +140,29 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+type ScalarReadResult = { ok: true; trimmed: string } | { ok: false; message: string }
+
+/**
+ * Validates-and-trims one scalar field, or fails with a typed rejection.
+ *
+ * `BusinessProfileFormValues` types every scalar field as `string`, but a
+ * server action is a public HTTP endpoint -- a crafted POST can send
+ * `null`, a number, or anything else JSON allows, and TypeScript's types do
+ * not survive to runtime. Calling `.trim()` on that unchecked value is
+ * exactly the class of bug three previous reviews on this branch found in
+ * other fields (an array-shape check present for one field, absent for the
+ * rest): this helper is the one place every scalar field goes through, so
+ * a field added to `BUSINESS_PROFILE_QUESTIONS` tomorrow is guarded by
+ * construction -- the loop below calls this for every question it iterates,
+ * not by a caller remembering to add a check for the new field.
+ */
+function readTrimmedScalar(value: unknown, question: BusinessProfileQuestion): ScalarReadResult {
+  if (typeof value !== 'string') {
+    return { ok: false, message: `The "${question.id}" field must be text.` }
+  }
+  return { ok: true, trimmed: value.trim() }
+}
+
 /**
  * Validates a submitted form against the same rules the interview enforces
  * on these 8 fields, and maps it to a `BusinessProfileEdit` ready for
@@ -150,7 +173,9 @@ function isStringArray(value: unknown): value is string[] {
  * missing key but reject an empty string as present-but-invalid (same
  * reasoning as `normalizeAnswerValue` in `interview-draft.ts`), so passing
  * `''` through would make every optional field in this form impossible to
- * leave blank.
+ * leave blank. Required fields are always included (even blank), so the
+ * schema's own required-field message -- not this function's generic one --
+ * is what a genuinely blank required field sees.
  */
 export function parseBusinessProfileFormValues(
   values: BusinessProfileFormValues,
@@ -160,19 +185,20 @@ export function parseBusinessProfileFormValues(
   }
 
   const candidate: Record<string, string | string[]> = {
-    offer: values.offer.trim(),
-    icp: values.icp.trim(),
-    transformation: values.transformation.trim(),
     taboos: values.taboos.map((item) => item.trim()).filter((item) => item.length > 0),
   }
-  const priceBand = values.priceBand.trim()
-  if (priceBand.length > 0) candidate.priceBand = priceBand
-  const proof = values.proof.trim()
-  if (proof.length > 0) candidate.proof = proof
-  const pointOfView = values.pointOfView.trim()
-  if (pointOfView.length > 0) candidate.pointOfView = pointOfView
-  const ctaTarget = values.ctaTarget.trim()
-  if (ctaTarget.length > 0) candidate.ctaTarget = ctaTarget
+
+  for (const question of BUSINESS_PROFILE_QUESTIONS) {
+    if (question.field === 'taboos') continue
+
+    const raw: unknown = values[question.field]
+    const read = readTrimmedScalar(raw, question)
+    if (!read.ok) return { success: false, message: read.message }
+
+    if (question.required || read.trimmed.length > 0) {
+      candidate[question.field] = read.trimmed
+    }
+  }
 
   const result = businessProfileSchema.safeParse(candidate)
   if (!result.success) {
