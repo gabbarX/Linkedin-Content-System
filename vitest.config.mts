@@ -5,7 +5,9 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    // Hooks are load-bearing now (the commit gate blocks commits), so they
+    // are tested like any other code.
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', '.claude/hooks/**/*.test.mjs'],
     passWithNoTests: true,
   },
 })

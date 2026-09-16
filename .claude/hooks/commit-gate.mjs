@@ -37,20 +37,26 @@
  *   are not gated by this; that would need a git pre-commit hook.
  *
  * - It SCRUBS Electron/VS Code environment variables before running the gate.
- *   When Claude Code runs inside the VS Code extension host, the hook process
- *   inherits ELECTRON_RUN_AS_NODE=1 and VSCODE_* vars. Those leak into child
- *   processes and change tooling behaviour — observed here flipping Vite's
- *   config loader to the native path, which made vitest fail inside the hook
- *   while passing in a terminal. A gate that disagrees with the terminal is
- *   worse than no gate: it trains you to bypass it. So the gate runs in an
- *   environment that matches a plain shell.
+ *   Inside the VS Code extension host this process inherits
+ *   ELECTRON_RUN_AS_NODE=1 and VSCODE_* vars, which leak into children and
+ *   change tooling behaviour — we watched them flip Vite to its native config
+ *   loader. That was NOT the cause of the drive-letter bug below (it was
+ *   investigated as a suspect and cleared), but a gate whose environment
+ *   differs from your terminal is a gate you will eventually distrust, so it
+ *   runs in one that matches a plain shell.
+ *
+ * - It CANONICALISES the project directory before using it as the child's cwd.
+ *   See normalizeProjectDir. This one is not defensive: it is the fix for a
+ *   real bug that made the gate fail inside the hook while the identical
+ *   command passed in a terminal.
  *
  * Portability: pure Node ESM, no shell-specific syntax. Runs the same on
  * Windows, macOS and Linux.
  */
 
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const GATE = "npm run verify";
 const GATE_TIMEOUT_MS = 280_000;
@@ -79,6 +85,33 @@ function invokesGitCommit(command) {
   return /(?:^|[;&|(]|&&|\|\|)\s*(?:[A-Z_][A-Z0-9_]*=\S*\s+)*git\s+(?:-\S+(?:\s+\S+)?\s+)*commit(?:\s|$)/i.test(
     command
   );
+}
+
+/**
+ * Canonicalise the project directory to its true on-disk casing.
+ *
+ * Claude Code provides CLAUDE_PROJECT_DIR with a LOWERCASE Windows drive
+ * letter ("c:/Users/..."), while the same process's cwd is "C:\Users\...".
+ * Passing the lowercase form to spawnSync as cwd made vitest resolve modules
+ * under a different root than its own runner, so the test files and the runner
+ * ended up with separate copies of vitest's context and every describe() threw
+ * "Cannot read properties of undefined (reading 'config')" — the gate failed
+ * inside the hook while the identical command passed in a terminal.
+ *
+ * Only fs.realpathSync.native fixes the casing: path.resolve and plain
+ * fs.realpathSync both preserve the lowercase drive letter. Verified on
+ * Node 26 / Windows 11.
+ *
+ * Returns the input unchanged if it cannot be resolved, so a missing directory
+ * produces the normal spawn error rather than an exception inside the hook.
+ */
+export function normalizeProjectDir(dir) {
+  if (!dir) return dir;
+  try {
+    return realpathSync.native(dir);
+  } catch {
+    return dir;
+  }
 }
 
 /**
@@ -117,8 +150,9 @@ function main() {
     process.exit(ALLOW);
   }
 
-  const projectDir =
-    process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
+  const projectDir = normalizeProjectDir(
+    process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd()
+  );
 
   const result = spawnSync(GATE, {
     cwd: projectDir,
@@ -160,4 +194,8 @@ function main() {
   process.exit(BLOCK);
 }
 
-main();
+// Only run when executed as a hook. Importing this module (from its test)
+// must not read stdin or exit the process.
+const invokedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) main();
