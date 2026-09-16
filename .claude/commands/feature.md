@@ -20,4 +20,11 @@ Follow this order, and do not skip ahead:
    required for UI components or prompt construction.
 5. Implement.
 6. Run `npm run verify`.
-7. Commit with a conventional-commit message.
+7. If the change could alter what a user experiences — a route, a form, a
+   redirect, auth, a style, anything whose failure mode is runtime rather than
+   compile time — run `/ecc:browser-qa` and report what you observed, not what
+   you expect. `npm run verify` proves the code compiles; it does not prove the
+   app works. Unverified changes are not shipped. If something cannot be
+   verified (missing credentials, a live third-party service), say so and name
+   what is untested.
+8. Commit with a conventional-commit message.

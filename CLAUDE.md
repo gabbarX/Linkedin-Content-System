@@ -63,6 +63,26 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 
 The app builds with no Supabase credentials present and must keep doing so — that is why `getServerEnv()` and `getPublicEnv()` are only ever called inside function bodies, never at module scope. Do not move an env read to module scope.
 
+## Verify in a browser before shipping
+
+`npm run verify` proves the code compiles, types check, unit tests pass and the build succeeds. **It does not prove the app works.** Milestone 1 shipped a green gate while a fresh clone returned 500 on every route — the build never executes `src/proxy.ts`, so nothing in the gate could have caught it. Browser QA caught it in one request.
+
+**Unverified changes are not shipped.** Run `/ecc:browser-qa` whenever a change could alter what a user actually experiences, and say what you observed — not what you expect. Use it for:
+
+- any route, page, layout, or redirect
+- any form, button, or interactive element
+- anything touching auth, the session guard, or a route handler
+- any design token, style, or component change
+- anything where the failure mode is runtime rather than compile time
+
+You do not need it for a pure refactor with no behavioural change, a docs-only edit, or a change already fully covered by a test you ran.
+
+What counts as verification: loading the affected routes, reading the console (zero errors, not "only known ones"), checking network requests for failures, exercising the actual interaction rather than assuming it works, and looking at the rendered result at both desktop and phone width. Screenshot anything visual.
+
+**Report what you saw.** "Verified" with no evidence is not verification. If you could not verify something — it needs credentials you do not have, or a live third-party service — say so plainly and name what is untested rather than letting it pass silently. A known gap is manageable; a silent one is not.
+
+Kill any dev server you start, and never leave a `.env.local` behind.
+
 ## Commits
 
 `npm run verify` passes first — see The gate above. Then:

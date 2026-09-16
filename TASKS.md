@@ -150,7 +150,7 @@ Small, non-blocking. Full context and triggers in `docs/BACKLOG.md`.
 - [ ] Delete the unused `@vitejs/plugin-react` dev dependency
 - [ ] Mount `<Toaster />` with a `ThemeProvider`, or strip `useTheme()` from `sonner.tsx`
 - [ ] Thread the `Database` type through the three Supabase client factories
-- [ ] Capture baseline screenshots so visual regression can actually pass rather than being inconclusive
+- [ ] Capture baseline screenshots so visual regression can actually pass rather than being inconclusive (see the browser-verification rule in `CLAUDE.md`)
 - [ ] Decide on mobile tap-target height — currently 32px, which passes WCAG AA (24px) but sits below the 44px platform guidance
 - [ ] Correct the two unverified LinkedIn-portal claims in `docs/ACCOUNTS.md` once you have seen the real forms
 
