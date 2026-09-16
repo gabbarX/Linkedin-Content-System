@@ -24,6 +24,16 @@ export type SaveAnswerResult = {
 }
 
 /**
+ * `Error.message`/`.name` are non-enumerable, so logging the error object
+ * itself serialises to `{}` -- same reasoning as
+ * `src/app/(app)/onboarding/samples/actions.ts` and
+ * `src/app/(app)/onboarding/voice/actions.ts`.
+ */
+function describeErrorForLog(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+}
+
+/**
  * Advances the interview by one question.
  *
  * Takes a question id, not an index or a user id: the id is looked up
@@ -88,14 +98,41 @@ export async function saveAnswer(
   }
 
   const { businessProfile, profile } = splitAnswersForPersistence(validation.answers)
-  await upsertBusinessProfile(user.id, businessProfile)
-  await updateProfile(user.id, {
-    cadencePerWeek: profile.cadencePerWeek,
-    preferredPostTime: profile.preferredPostTime,
-    timezone: profile.timezone,
-    onboardingStep: nextStep('interview'),
-  })
-  await clearInterviewDraft(user.id)
+
+  // I4: this whole block -- the final advance's writes -- is one try/catch,
+  // matching samples/actions.ts and voice/actions.ts. This is the most
+  // consequential write in the flow, and it was previously the only one on
+  // any onboarding screen with no error handling at all: a transient
+  // database error here used to replace the whole page with the nearest
+  // error boundary instead of an inline retry.
+  //
+  // `saveInterviewDraft` runs FIRST, before `upsertBusinessProfile`, so the
+  // just-typed final answer (already merged into `updatedDraft` above)
+  // survives a failure in the writes that follow -- previously the success
+  // path never persisted the draft at all, so a failure here would have
+  // lost it. `redirect()` stays outside the try -- it works by throwing a
+  // Next.js navigation signal, and catching that here would break the
+  // redirect instead of an error (same reasoning as
+  // samples/actions.ts's `deriveAndAdvance`).
+  try {
+    await saveInterviewDraft(user.id, updatedDraft)
+    await upsertBusinessProfile(user.id, businessProfile)
+    await updateProfile(user.id, {
+      cadencePerWeek: profile.cadencePerWeek,
+      preferredPostTime: profile.preferredPostTime,
+      timezone: profile.timezone,
+      onboardingStep: nextStep('interview'),
+    })
+    await clearInterviewDraft(user.id)
+  } catch (error) {
+    console.error(
+      `LinkBud: saveAnswer failed to persist the finished interview for user ${user.id} - ${describeErrorForLog(error)}`,
+    )
+    return {
+      ok: false,
+      message: 'Something went wrong saving your answers. Nothing was lost -- try again.',
+    }
+  }
 
   redirect(routeForStep(nextStep('interview')))
 }

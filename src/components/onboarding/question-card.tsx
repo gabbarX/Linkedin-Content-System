@@ -1,12 +1,14 @@
 'use client'
 
 import Link from 'next/link'
+import { unstable_rethrow } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { InterviewQuestion } from '@/lib/onboarding/questions'
+import { SELECT_CLASS_NAME } from './select-class-name'
 
 /**
  * Structurally identical to `SaveAnswerResult` in
@@ -17,6 +19,8 @@ import type { InterviewQuestion } from '@/lib/onboarding/questions'
  * component ever actually receives back is a validation failure.
  */
 type SaveAnswerResult = { ok: false; message: string }
+
+const FALLBACK_ERROR_MESSAGE = 'Something went wrong. Try again in a moment.'
 
 type QuestionCardProps = {
   question: InterviewQuestion
@@ -56,9 +60,6 @@ function computeInitialRawValue(
   return typeof initialValue === 'string' ? initialValue : ''
 }
 
-const selectClassName =
-  'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm'
-
 /**
  * One question, one screen. Renders the widget for `question.input`, keeps
  * it as a single controlled string (list answers are newline-separated,
@@ -92,12 +93,25 @@ export function QuestionCard({
     }
     setError(null)
     startTransition(async () => {
-      // A successful save redirects inside the server action, which throws
-      // Next's navigation signal before this promise resolves with a value
-      // — so `result` is only ever populated on a validation failure.
-      const result = await saveAnswer(question.id, rawValue)
-      if (!result.ok) {
-        setError(result.message)
+      try {
+        // A successful save redirects inside the server action, which
+        // throws Next's navigation signal before this promise resolves
+        // with a value — so `result` is only ever populated on a
+        // validation failure.
+        const result = await saveAnswer(question.id, rawValue)
+        if (!result.ok) {
+          setError(result.message)
+        }
+      } catch (error) {
+        // A redirect is not a failure -- it is how a successful saveAnswer
+        // reports success (same reasoning as sample-list.tsx and
+        // voice-editor.tsx). Re-throwing lets the framework's
+        // RedirectBoundary navigate; only a genuine failure -- a database
+        // error on the interview's final advance, most consequentially --
+        // reaches the message below instead of crashing the whole page
+        // (I4).
+        unstable_rethrow(error)
+        setError(FALLBACK_ERROR_MESSAGE)
       }
     })
   }
@@ -167,7 +181,7 @@ export function QuestionCard({
             id="interview-answer"
             value={rawValue}
             onChange={(event) => setRawValue(event.target.value)}
-            className={selectClassName}
+            className={SELECT_CLASS_NAME}
           >
             {(timezoneOptions ?? []).map((tz) => (
               <option key={tz} value={tz}>
