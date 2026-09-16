@@ -1,8 +1,8 @@
 import 'server-only'
-import { LlmError, completeJson, type CompleteJsonOptions } from '@/server/llm/client'
+import { LlmError, completeJson, type CompleteJsonOptions } from './client'
 
 /**
- * One bounded fallback for the strategy's model calls.
+ * One bounded fallback for model calls that a second provider could rescue.
  *
  * The gateway (`completeJson`) deliberately has no retry loop -- "callers
  * that want one can wrap this" -- so this is that wrapper, kept as narrow
@@ -36,9 +36,11 @@ import { LlmError, completeJson, type CompleteJsonOptions } from '@/server/llm/c
  * ~30 s. Same caveat as the default: free model ids are withdrawn without
  * notice; if this starts returning 404, re-run the selection.
  *
- * Voice derivation (Milestone 2) does not use this on purpose: it is one
- * call with its own retry screen, and widening this to the gateway would
- * be the loop the gateway's design declines. Recorded in docs/BACKLOG.md.
+ * Used by the strategy generator (six calls, one session) and, since the
+ * same outage was watched turning the voice step into a dead end during
+ * Milestone 3's browser QA, by voice derivation (one call). It is a wrapper
+ * beside the gateway, not a change to it: completeJson itself still makes
+ * exactly one call, and a caller that pins a model still gets exactly that.
  */
 export const FALLBACK_MODEL = 'nex-agi/nex-n2.5-pro:free'
 

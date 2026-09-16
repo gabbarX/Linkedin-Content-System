@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { completeJson } from '@/server/llm/client'
+import { completeJsonWithFallback as completeJson } from '@/server/llm/complete-with-fallback'
 import {
   FORMALITIES,
   HUMOUR_LEVELS,

@@ -4,7 +4,7 @@ import type { BusinessProfile } from '@/server/db/repositories/business-profiles
 import type { SlotBrief, Strategy } from '@/server/db/repositories/strategies'
 import type { VoiceProfile } from '@/server/db/repositories/voice-profiles'
 import { LlmError } from '@/server/llm/client'
-import { completeJsonWithFallback as completeJson } from './complete-with-fallback'
+import { completeJsonWithFallback as completeJson } from '@/server/llm/complete-with-fallback'
 import { FORMAT_META, PHASE_META, phaseForWeek } from '@/lib/strategy/vocabulary'
 import { describeBusiness, describeTaboos, describeVoice } from './prompt-context'
 

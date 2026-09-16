@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 const completeJson = vi.fn()
-vi.mock('@/server/llm/client', async () => {
-  const actual = await vi.importActual<typeof import('@/server/llm/client')>('@/server/llm/client')
+vi.mock('./client', async () => {
+  const actual = await vi.importActual<typeof import('./client')>('./client')
   return { ...actual, completeJson }
 })
 
-const { LlmError } = await import('@/server/llm/client')
+const { LlmError } = await import('./client')
 const { FALLBACK_MODEL, completeJsonWithFallback, createFallbackSession, isTransientProviderFailure } =
   await import('./complete-with-fallback')
 

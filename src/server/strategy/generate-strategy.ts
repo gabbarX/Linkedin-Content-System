@@ -4,7 +4,7 @@ import type { BusinessProfile } from '@/server/db/repositories/business-profiles
 import type { StrategyDraft } from '@/server/db/repositories/strategies'
 import type { VoiceProfile } from '@/server/db/repositories/voice-profiles'
 import { LlmError } from '@/server/llm/client'
-import { createFallbackSession } from './complete-with-fallback'
+import { createFallbackSession } from '@/server/llm/complete-with-fallback'
 import { firstMondayAfter, todayInTimeZone, type Cadence } from '@/lib/strategy/schedule'
 import {
   ARC_PHASES,
