@@ -45,7 +45,7 @@ export function getServerEnv(): ServerEnv {
   return cached
 }
 
-/** Safe to reference from client components. */
+/** Safe to reference from client components. Never throws. */
 export const publicEnv = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
@@ -53,3 +53,46 @@ export const publicEnv = {
 } as const
 
 export type PublicEnv = typeof publicEnv
+
+const publicSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  NEXT_PUBLIC_APP_URL: z.string().url(),
+})
+
+export type ValidatedPublicEnv = z.infer<typeof publicSchema>
+
+export function parsePublicEnv(
+  raw: Record<string, string | undefined>,
+): ValidatedPublicEnv {
+  const result = publicSchema.safeParse(raw)
+  if (!result.success) {
+    const lines = result.error.issues.map(
+      (issue) => `  ${issue.path.join('.')}: ${issue.message}`,
+    )
+    throw new Error(`Invalid environment configuration:\n${lines.join('\n')}`)
+  }
+  return result.data
+}
+
+let cachedPublic: ValidatedPublicEnv | undefined
+
+/**
+ * The three NEXT_PUBLIC_* values the Supabase clients depend on, validated.
+ * Throws naming the offending variable.
+ *
+ * Each key is read as a literal member expression because Next.js inlines
+ * NEXT_PUBLIC_* at build time only in that form — `process.env` as a whole
+ * is empty in the browser bundle.
+ *
+ * Call this from inside a function body, never at module scope: the app must
+ * keep building and prerendering with no credentials present.
+ */
+export function getPublicEnv(): ValidatedPublicEnv {
+  cachedPublic ??= parsePublicEnv({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  })
+  return cachedPublic
+}
