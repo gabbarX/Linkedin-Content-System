@@ -4,11 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { unstable_rethrow } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-
-/** Structurally identical to `StrategyActionResult` in
- * `src/server/strategy/actions.ts`; declared locally, same pattern as
- * `strategy-builder.tsx`. */
-type StrategyActionResult = { ok: true } | { ok: false; message: string }
+import type { StrategyActionResult } from '@/lib/strategy/action-result'
 
 const FALLBACK_ERROR_MESSAGE = 'Something went wrong. Your strategy is untouched -- try again in a moment.'
 

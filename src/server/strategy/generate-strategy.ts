@@ -4,7 +4,7 @@ import type { BusinessProfile } from '@/server/db/repositories/business-profiles
 import type { StrategyDraft } from '@/server/db/repositories/strategies'
 import type { VoiceProfile } from '@/server/db/repositories/voice-profiles'
 import { LlmError } from '@/server/llm/client'
-import { createFallbackSession } from '@/server/llm/complete-with-fallback'
+import { createFallbackSession, type FallbackSession } from '@/server/llm/complete-with-fallback'
 import { firstMondayAfter, todayInTimeZone, type Cadence } from '@/lib/strategy/schedule'
 import {
   ARC_PHASES,
@@ -171,15 +171,19 @@ export type GenerateStrategyInput = {
   timeZone: string
   /** Injectable for tests; defaults to the real clock. */
   now?: Date
+  /** Share a fallback session with the calls that follow (draftWeek), so a
+   * provider observed down here is not re-proven there. */
+  llm?: FallbackSession
 }
 
 export async function generateStrategy(input: GenerateStrategyInput): Promise<StrategyDraft> {
   const { business, voice, cadencePerWeek } = input
   const startsOn = firstMondayAfter(todayInTimeZone(input.timeZone, input.now))
 
-  // One session for all six calls, so a provider observed down on the plan
-  // call is not re-proven down four more times (see complete-with-fallback).
-  const llm = createFallbackSession()
+  // One session for all five calls here (and the brief call after, if the
+  // caller passes it on), so a provider observed down on the plan call is
+  // not re-proven down again (see complete-with-fallback).
+  const llm = input.llm ?? createFallbackSession()
 
   const plan = await llm.complete({
     system: PLAN_SYSTEM,

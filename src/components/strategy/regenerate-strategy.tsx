@@ -15,10 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
-/** Structurally identical to `StrategyActionResult` in
- * `src/server/strategy/actions.ts`; declared locally, same pattern as
- * `strategy-builder.tsx`. */
-type StrategyActionResult = { ok: true } | { ok: false; message: string }
+import type { StrategyActionResult } from '@/lib/strategy/action-result'
 
 const FALLBACK_ERROR_MESSAGE =
   'Something went wrong. Your current strategy is untouched -- try again in a moment.'

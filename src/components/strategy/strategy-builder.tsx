@@ -4,15 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { unstable_rethrow } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-
-/**
- * Structurally identical to `StrategyActionResult` in
- * `src/server/strategy/actions.ts` -- declared locally so this component
- * does not reach into a server module for a type (same pattern as
- * `sample-list.tsx`). A success redirects server-side before the promise
- * resolves with a value, so `ok: true` is never actually observed here.
- */
-type StrategyActionResult = { ok: true } | { ok: false; message: string }
+import type { StrategyActionResult } from '@/lib/strategy/action-result'
 
 const FALLBACK_ERROR_MESSAGE =
   'Something went wrong. Nothing you entered is lost -- try again in a moment.'
@@ -39,7 +31,7 @@ export type StrategyBuilderProps = {
  *
  * Generation is five model calls plus one for the week's briefs -- measured
  * at 30-60 s when the default provider is healthy and longer when it falls
- * back (see `src/server/strategy/complete-with-fallback.ts`), so the pending
+ * back (see `src/server/llm/complete-with-fallback.ts`), so the pending
  * state says so honestly and the button is disabled for the duration.
  *
  * The action call is wrapped in try/catch as a second line of defence: the

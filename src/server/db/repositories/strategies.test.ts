@@ -153,18 +153,21 @@ describe('replaceStrategy', () => {
     expect(pillars.deleteMany).toHaveBeenCalledWith({ where: { user_id: USER } })
   })
 
-  it('bumps the version on a regenerate and starts at 1 for a first strategy', async () => {
+  it('increments the version atomically on a regenerate and starts at 1 for a first strategy', async () => {
     primeTransaction()
     await replaceStrategy(USER, draft())
     const upsert = strategies.upsert.mock.calls[0]?.[0] as {
       where: { user_id: string }
       create: { version: number; user_id: string }
-      update: { version: number }
+      update: { version: { increment: number } }
     }
     expect(upsert.where).toEqual({ user_id: USER })
     expect(upsert.create.version).toBe(1)
     expect(upsert.create.user_id).toBe(USER)
-    expect(upsert.update.version).toBe(2)
+    // An increment expression, never a number computed from a prior read:
+    // two tabs regenerating at once must not both write the same version.
+    expect(upsert.update.version).toEqual({ increment: 1 })
+    expect(strategies.findUnique).not.toHaveBeenCalled()
   })
 
   it('writes user_id onto every pillar and every slot, and resolves pillar positions to ids', async () => {

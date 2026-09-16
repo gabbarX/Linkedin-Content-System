@@ -1,12 +1,7 @@
 import 'server-only'
 import type { Prisma } from '@prisma/client'
 import type { Cadence, IsoDate } from '@/lib/strategy/schedule'
-import {
-  ARC_PHASES,
-  type ArcPhase,
-  type SlotFormat,
-  type SlotStatus,
-} from '@/lib/strategy/vocabulary'
+import type { ArcPhase, SlotFormat, SlotStatus } from '@/lib/strategy/vocabulary'
 import { getPrisma } from '../client'
 
 /**
@@ -150,6 +145,7 @@ function toStrategy(row: StrategyRow): Strategy {
     id: row.id,
     userId: row.user_id,
     version: row.version,
+    // Narrowed by the check constraint cadence_per_week between 3 and 5.
     cadencePerWeek: row.cadence_per_week as Cadence,
     startsOn: toIsoDate(row.starts_on),
     positioning: row.positioning,
@@ -229,11 +225,6 @@ export type StrategyDraft = {
  */
 export async function replaceStrategy(userId: string, draft: StrategyDraft): Promise<Strategy> {
   return getPrisma().$transaction(async (tx) => {
-    const existing = await tx.strategies.findUnique({
-      where: { user_id: userId },
-      select: { id: true, version: true },
-    })
-
     await tx.slots.deleteMany({ where: { user_id: userId } })
     await tx.pillars.deleteMany({ where: { user_id: userId } })
 
@@ -252,7 +243,9 @@ export async function replaceStrategy(userId: string, draft: StrategyDraft): Pro
     const strategy = await tx.strategies.upsert({
       where: { user_id: userId },
       create: { user_id: userId, version: 1, ...fields },
-      update: { version: (existing?.version ?? 0) + 1, ...fields },
+      // Atomic increment, not read-then-write: two regenerates racing from
+      // two tabs must not both land on the same version number.
+      update: { version: { increment: 1 }, ...fields },
       select: { id: true, version: true },
     })
 
@@ -361,6 +354,3 @@ export async function getNextSlot(
   return { ...toSlot(row), pillarName: row.pillars.name }
 }
 
-// Re-exported so the generator can iterate the phases when building the
-// `phases` record without a second import path.
-export { ARC_PHASES }
