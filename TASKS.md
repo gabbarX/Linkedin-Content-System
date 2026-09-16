@@ -194,13 +194,62 @@ question per screen.
       R11 — is the common case this milestone produces, and its copy says
       Milestone 3 hasn't shipped yet without implying the user left anything undone.
 
-## Milestone 3 — strategy
+## Milestone 3 — strategy ✅ complete (one live check outstanding)
 
-- [ ] Generate 4-5 content pillars
-- [ ] 12-week arc: authority → problem-aware → offer-aware → invitation
-- [ ] Lay out every dated slot at the chosen cadence (36-60 slots), each with theme, angle, format, one-line brief
-- [ ] Draft only the next week in full — later weeks stay steerable
-- [ ] `/calendar` and `/strategy` pages (currently 404)
+Plan: `docs/superpowers/plans/2026-09-16-linkbud-strategy.md` (10 tasks, rulings
+R-M3-1..11). Twelve commits on `feat/strategy`, `npm run verify` green on each.
+
+- [x] Migration 0004 — `strategies`, `pillars`, `slots`; RLS enabled and forced,
+      twelve `authenticated` policies, check constraints verified live (a
+      non-Monday start, eleven weekly themes, an unknown format or status and two
+      slots on one day are all rejected; deleting a strategy cascades)
+- [x] Strategy repository — `userId`-first throughout; `replaceStrategy` is one
+      transaction that bumps the version; `saveSlotBriefs` filters on id AND
+      user_id and reports the rows actually updated. Tests written first.
+- [x] Generate 4-5 content pillars, positioning and the four-phase arc — one
+      planning call (`generateStrategy`), enums and counts validated in code
+- [x] 12-week arc: authority → problem-aware → offer-aware → invitation — phase
+      derived from the week index (R-M3-3), described per user on the strategy row
+- [x] Lay out every dated slot at the chosen cadence (36-60 slots), each with
+      theme, angle, format, one-line brief — one model call per phase, run in
+      parallel; dates are arithmetic in the user's timezone, anchored on the first
+      Monday after today, fixed weekdays per cadence (R-M3-2); nothing is written
+      until all five calls validate
+- [x] Draft only the next week in full — `draftWeek` writes hook, key points,
+      proof and CTA per slot (a full *brief*, not a post: posts sit behind the
+      paywall, R-M3-4); later weeks keep the one-line brief
+- [x] `/onboarding/strategy` — the `strategy` step now has a page (R-M3-5); the
+      onboarding guard sends a strategy-step user there, and one tap builds the
+      plan and lands on `/strategy` (R-M3-6)
+- [x] `/strategy` and `/calendar` pages (no longer 404) — positioning, pillars,
+      arc, this week's briefs, Regenerate behind a confirm (R-M3-7); the
+      calendar lists all twelve weeks by phase with the current week marked
+- [x] Dashboard shows the next scheduled slot (spec §6, R-M3-8); the radar copy
+      no longer claims to wait on the strategy
+- [x] Gateway: an error object inside a 200 response is surfaced with its code;
+      a bounded, tested provider fallback (`src/server/llm/complete-with-fallback.ts`)
+      retries once on a second free model for transient failures only, sticky
+      within a generation; voice derivation uses it too
+- [x] Browser QA — every route at 1440 and 375, console clean, no horizontal
+      overflow, signed-out redirects to `/login`, both guards (strategy-step user
+      forced to build; paywall user kept off the onboarding page), Regenerate
+      dialog, brief-week retry, briefed and unbriefed layouts
+- [x] Fixed on the way: the Milestone 1 nav overflowed a 375px viewport by
+      ~250px on every authenticated page (`fix(app): keep the nav inside the
+      viewport on phones`)
+- [ ] **Outstanding live check.** Generation was verified live end to end
+      through the real functions (36 slots on the right days, coherent pillars
+      and arc, week-one briefs whose proof stayed inside the profile; 114 s +
+      27 s with the default provider degraded). It was *not* verified from the
+      browser button: OpenRouter's account-wide free tier is 50 requests a day
+      and the live spikes used them all (resets 00:00 UTC). What the browser
+      showed instead was the failure path — the real rate-limit message and a
+      working Try again on all three model-backed buttons. The strategy and
+      briefs on the QA account were seeded through the real repositories.
+      **YOU:** after the reset, sign in as the QA account
+      (`iamankitgautamxd+linkbudqa@gmail.com`, seeded with `npm run seed:dev`),
+      open `/strategy`, tap Regenerate, and watch it land on a fresh version.
+      Or add credits to OpenRouter first — a spend, so your call.
 
 ## Milestone 4 — paywall
 
@@ -244,7 +293,7 @@ question per screen.
 - [ ] Daily per-user query built from niche + pillars
 - [ ] LLM relevance filter that drafts an angle tying each item to the offer
 - [ ] "What's happening in your world" dashboard band, one tap to a draft
-- [ ] `/settings` page (currently 404)
+- [ ] `/settings` — the rest of the settings surface (a minimal index and the business profile editor exist since Milestone 2)
 
 ## Milestone 9 — learnings
 

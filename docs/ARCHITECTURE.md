@@ -21,7 +21,17 @@ The foundation (Milestone 1) is complete. Everything in this section is real cod
 | Shell | `src/app/(app)/layout.tsx`, `src/components/app-nav.tsx`, `src/app/(app)/dashboard/page.tsx` | The session guard lives in the `(app)` layout: no user, redirect to `/login`. The dashboard renders the three bands as empty states. |
 | Design system | `src/app/globals.css`, `src/components/ui/*` | See `docs/DESIGN-SYSTEM.md`. |
 
-**None of the eight product modules below exist yet.** There is no `src/lib/onboarding/`, no `src/lib/publisher/`, no `jobs` table. Do not import from them, do not describe them as implemented, and do not assume a helper exists because this document names its signature.
+Two of the eight product modules below exist as of Milestone 3:
+
+| Module | Files | State |
+|---|---|---|
+| `onboarding` (Milestone 2) | `src/lib/onboarding/*`, `src/server/onboarding/*`, `src/server/db/repositories/{business-profiles,voice-profiles,writing-samples}.ts`, `src/app/(app)/onboarding/{interview,samples,voice}/`, `src/app/(app)/settings/business/` | Interview, samples, derived and editable Voice Profile, editable Business Profile. Migration `0003`. |
+| LLM gateway | `src/server/llm/client.ts`, `src/server/llm/complete-with-fallback.ts` | `completeJson` (one call, strict `json_schema`, validated on return) and a bounded, tested provider fallback beside it. |
+| `strategy` (Milestone 3) | `src/lib/strategy/{vocabulary,schedule}.ts`, `src/server/strategy/*`, `src/server/db/repositories/strategies.ts`, `src/app/(app)/onboarding/strategy/`, `src/app/(app)/(onboarded)/{strategy,calendar}/`, `src/components/strategy/*` | Pillars, arc, 36–60 dated slots, the coming week briefed in full, `/strategy` and `/calendar`. Migration `0004`. Rulings in `docs/superpowers/plans/2026-09-16-linkbud-strategy.md`. |
+
+The onboarding step machine (`src/lib/onboarding/steps.ts`) routes `interview`, `samples`, `voice` and `strategy` to their pages; `paywall` is Milestone 4's and still falls back to the dashboard.
+
+**The other six — `radar`, `writer`, `publisher`, `jobs`, `attribution`, `learnings` — do not exist yet.** There is no `src/server/publisher/`, no `jobs` table. Do not import from them, do not describe them as implemented, and do not assume a helper exists because this document names its signature.
 
 ---
 

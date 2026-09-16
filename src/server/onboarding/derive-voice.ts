@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { completeJson } from '@/server/llm/client'
+import { completeJsonWithFallback } from '@/server/llm/complete-with-fallback'
 import {
   FORMALITIES,
   HUMOUR_LEVELS,
@@ -76,7 +76,7 @@ export async function deriveVoiceProfile(samples: string[]): Promise<DerivedVoic
 
   const measurements = measureSamples(samples)
 
-  const judgement = await completeJson({
+  const judgement = await completeJsonWithFallback({
     system: SYSTEM_PROMPT,
     user: buildUserPrompt(samples),
     schema: judgementSchema,

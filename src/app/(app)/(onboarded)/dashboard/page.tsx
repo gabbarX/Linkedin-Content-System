@@ -1,7 +1,15 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { dashboardCopyForStep, type DashboardBandCopy } from '@/lib/onboarding/dashboard-copy'
+import {
+  RADAR_NOT_YET,
+  dashboardCopyForStep,
+  type DashboardBandCopy,
+} from '@/lib/onboarding/dashboard-copy'
+import { formatIsoDate, todayInTimeZone } from '@/lib/strategy/schedule'
+import { FORMAT_META } from '@/lib/strategy/vocabulary'
 import { createServerClient } from '@/lib/supabase/server'
 import { getProfile } from '@/server/db/repositories/profiles'
+import { getNextSlot } from '@/server/db/repositories/strategies'
 
 function Band({
   title,
@@ -35,22 +43,24 @@ function Empty({ children }: { children: React.ReactNode }) {
  * specific about; `(app)/layout.tsx` already logs this as the real error. */
 const NO_PROFILE_COPY: DashboardBandCopy = {
   needsYouNow: "We can't find your account details right now. Refresh, or contact support if this keeps happening.",
-  world: "Your radar starts once your strategy exists.",
+  world: RADAR_NOT_YET,
   working: 'No published posts yet.',
 }
 
 /**
- * The authenticated home screen (Task 11, spec §6).
+ * The authenticated home screen (spec §6).
  *
- * Three bands, each read from the user's real onboarding state rather than
- * one hard-coded message shown to everyone -- the previous "Finish
- * onboarding to get your first week" line was false for any user who had
- * actually finished, which today is the common case: the voice step
- * advances to `'strategy'`, not `'done'` (Ruling R11), and
- * `onboardingRouteFor('strategy')` is `null`, so a user who just finished
- * everything this milestone builds lands here. `dashboardCopyForStep`
- * (`src/lib/onboarding/dashboard-copy.ts`) is the single place that maps
- * every declared step to copy that is actually true for that user.
+ * Three bands, each read from the user's real state rather than one
+ * hard-coded message shown to everyone. From Milestone 3 the first band
+ * shows the next scheduled slot when a strategy exists (spec §6 names
+ * "next scheduled slot" as part of "Needs you now"; Ruling R-M3-8) --
+ * there are no approvals or drafts to show until Milestones 5 and 6, so
+ * the slot is what this band can honestly say is coming up. With no slot,
+ * `dashboardCopyForStep` (`src/lib/onboarding/dashboard-copy.ts`) maps
+ * every declared step to copy that is true for that user.
+ *
+ * "Today" is computed in the user's timezone, never the server's -- a
+ * server west of Greenwich would otherwise show yesterday's slot as next.
  */
 export default async function DashboardPage() {
   const supabase = await createServerClient()
@@ -64,14 +74,38 @@ export default async function DashboardPage() {
 
   const profile = await getProfile(user.id)
   const copy = profile ? dashboardCopyForStep(profile.onboardingStep) : NO_PROFILE_COPY
+  const nextSlot = profile ? await getNextSlot(user.id, todayInTimeZone(profile.timezone)) : null
 
   return (
     <>
       <h1 className="font-display text-3xl">Today</h1>
 
       <div className="mt-10">
-        <Band title="Needs you now" hint="Posts waiting for your approval.">
-          <Empty>{copy.needsYouNow}</Empty>
+        <Band title="Needs you now" hint="Posts waiting for your approval, and what's coming up next.">
+          {nextSlot ? (
+            <div className="rounded-lg border border-border bg-surface p-6">
+              <p className="text-xs font-medium tracking-wide text-text-muted uppercase">Next up</p>
+              <p className="mt-2 text-sm">
+                <time dateTime={nextSlot.scheduledOn} className="font-medium">
+                  {formatIsoDate(nextSlot.scheduledOn, { weekday: true })}
+                </time>
+                <span className="text-text-muted">
+                  {' '}· {nextSlot.pillarName} · {FORMAT_META[nextSlot.format].label}
+                </span>
+              </p>
+              <h3 className="mt-2 text-base font-medium">{nextSlot.theme}</h3>
+              <p className="mt-1 text-sm text-text-muted">{nextSlot.angle}</p>
+              <p className="mt-4 text-sm text-text-muted">
+                Nothing to approve yet -- drafting and publishing arrive in later releases.{' '}
+                <Link href="/calendar" className="text-brand underline-offset-4 hover:underline">
+                  See the full calendar
+                </Link>
+                .
+              </p>
+            </div>
+          ) : (
+            <Empty>{copy.needsYouNow}</Empty>
+          )}
         </Band>
 
         <Band

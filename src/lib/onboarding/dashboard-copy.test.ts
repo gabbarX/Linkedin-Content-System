@@ -24,20 +24,33 @@ describe('dashboardCopyForStep', () => {
     expect(copy.needsYouNow).toMatch(/voice profile/i)
   })
 
-  // The common case for a user who has just finished everything this
-  // milestone builds (Ruling R11): must not say "finish onboarding" (they
-  // did) and must not read as an error or a failure on their part.
-  it('tells a strategy-step user the truth without alarming them', () => {
+  // Reached only if the (onboarded) guard is weakened -- a strategy-step
+  // user is normally redirected to /onboarding/strategy (Ruling R-M3-5).
+  // Must point at the one thing they can do, without alarming them.
+  it('tells a strategy-step user to build their strategy, without alarming them', () => {
     const copy = dashboardCopyForStep('strategy')
-    expect(copy.needsYouNow).not.toMatch(/finish onboarding/i)
-    expect(copy.needsYouNow).toMatch(/strategy/i)
-    expect(copy.needsYouNow).not.toMatch(/error|failed|wrong|sorry/i)
+    expect(copy.needsYouNow).toMatch(/build your .*strategy/i)
+    expect(copy.needsYouNow).not.toMatch(/error|failed|wrong|sorry|in progress on our end/i)
   })
 
-  it('tells a paywall-step user billing is coming, not that they failed to do something', () => {
+  // The common case after Milestone 3 (Ruling R-M3-6): the user has a
+  // strategy and this week's briefs, and billing has not shipped. Must say
+  // the plan exists, must not claim it is still being built, must not say
+  // "finish onboarding" (they did).
+  it('tells a paywall-step user their strategy is ready and billing is coming', () => {
     const copy = dashboardCopyForStep('paywall')
     expect(copy.needsYouNow).toMatch(/billing/i)
-    expect(copy.needsYouNow).not.toMatch(/finish onboarding/i)
+    expect(copy.needsYouNow).toMatch(/strategy .*ready|ready on the strategy page/i)
+    expect(copy.needsYouNow).not.toMatch(/finish onboarding|hasn't been built|in progress/i)
+  })
+
+  // Through Milestone 2 this read "Your radar starts once your strategy
+  // exists" -- false the moment one does. Whatever it says must be true
+  // both before and after a strategy exists.
+  it('never claims the radar is waiting on the strategy', () => {
+    for (const step of ONBOARDING_STEPS) {
+      expect(dashboardCopyForStep(step).world).not.toMatch(/once your strategy exists/i)
+    }
   })
 
   it('gives a done user a plain empty state, no onboarding language at all', () => {

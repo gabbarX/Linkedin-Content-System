@@ -115,6 +115,45 @@ describe('completeJson', () => {
     ).rejects.toThrow(/429: rate limit exceeded/)
   })
 
+  it('surfaces an error object carried inside a 200 response, with its message and code', async () => {
+    // Observed live 2026-09-16: OpenRouter answers 200 with
+    // {"error":{"message":"Upstream error from Nvidia: Service temporarily
+    // overloaded","code":502,...}} and no choices at all. Reporting that as
+    // "no content" hid the one fact the user could act on (wait and retry).
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({
+        id: 'gen-1',
+        error: {
+          message: 'Upstream error from Nvidia: Service temporarily overloaded',
+          code: 502,
+          metadata: { error_type: 'provider_unavailable' },
+        },
+      }),
+    }))
+    const { completeJson } = await import('./client')
+
+    await expect(
+      completeJson({ system: 's', user: 'u', schema }),
+    ).rejects.toThrow(/OpenRouter returned an error \(502\): Upstream error from Nvidia: Service temporarily overloaded/)
+  })
+
+  it('names the finish_reason when a choice comes back with no content', async () => {
+    // Observed live 2026-09-16: two minutes of whitespace keepalives, then a
+    // choice with content null and finish_reason "error".
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true, status: 200, text: async () => '',
+      json: async () => ({ choices: [{ finish_reason: 'error', message: { role: 'assistant', content: null } }] }),
+    }))
+    const { completeJson } = await import('./client')
+
+    await expect(
+      completeJson({ system: 's', user: 'u', schema }),
+    ).rejects.toThrow(/no content.*finish_reason: error/i)
+  })
+
   it('throws when the response carries no message content', async () => {
     // A provider returning a choices array with no content is a real failure
     // mode; without this branch it surfaces as "undefined is not valid JSON".
