@@ -160,4 +160,33 @@ describe('parseVoiceFormValues', () => {
     const result = parseVoiceFormValues(validForm({ formality: '' }))
     expect(result.success).toBe(false)
   })
+
+  // `VoiceFormValues` types every array field as `string[]`, but a server
+  // action is a public HTTP endpoint: a crafted request can send anything
+  // JSON-serializable, and TypeScript's types do not survive to runtime.
+  // These assert a typed rejection, not a thrown error -- the failure mode
+  // a review caught before this guard existed.
+  it('rejects a non-array value for an array field instead of throwing', () => {
+    const malformed = { ...validForm(), openerPatterns: 'not-an-array' } as unknown as VoiceFormValues
+    let result: ReturnType<typeof parseVoiceFormValues> | undefined
+    expect(() => {
+      result = parseVoiceFormValues(malformed)
+    }).not.toThrow()
+    expect(result).toEqual({ success: false, message: 'Opener patterns must be a list of text.' })
+  })
+
+  it('rejects an array containing a non-string element instead of throwing', () => {
+    const malformed = {
+      ...validForm(),
+      vocabularyMarkers: ['playbook', 42],
+    } as unknown as VoiceFormValues
+    let result: ReturnType<typeof parseVoiceFormValues> | undefined
+    expect(() => {
+      result = parseVoiceFormValues(malformed)
+    }).not.toThrow()
+    expect(result).toEqual({
+      success: false,
+      message: 'Vocabulary markers must be a list of text.',
+    })
+  })
 })

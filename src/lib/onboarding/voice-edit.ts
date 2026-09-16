@@ -163,24 +163,50 @@ export type VoiceFormParseResult =
   | { success: true; edit: VoiceProfileEdit }
   | { success: false; message: string }
 
+/**
+ * `allowed` is `readonly T[]` and `value` is `string` -- `Array.prototype
+ * .includes` requires its argument to already be `T`, which `value` is not
+ * yet (that is the entire point of this function), so calling it needs a
+ * cast just to satisfy that signature. `.some` has no such requirement: it
+ * takes a predicate, so comparing a `T` to a `string` inside the callback
+ * is an ordinary (and here, correctly narrowing) equality check with
+ * nothing to quiet. Prefer this form over reaching for `as readonly
+ * string[]` again -- the cast is not needed, not a shortcut being skipped.
+ */
 function isAllowedValue<T extends string>(allowed: readonly T[], value: string): value is T {
-  return (allowed as readonly string[]).includes(value)
+  return allowed.some((option) => option === value)
+}
+
+/** Runtime shape check for an array field. `VoiceFormValues` types these as
+ * `string[]`, but a server action is a public HTTP endpoint -- anything
+ * with a session can call it with a JSON body that does not match the type
+ * at all, and TypeScript's types do not survive to runtime. Without this,
+ * a non-array or an array containing a non-string reaches `normalizeList`'s
+ * `.map`/`.filter` and throws, which turns a bad request into an unhandled
+ * application error instead of the typed rejection every other field in
+ * this form gets. */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
 /** Trims each entry and drops anything left blank. Order is preserved --
  * these are patterns and phrases, not a set, and the user's own ordering
- * (most-used first, say) is meaningful. */
+ * (most-used first, say) is meaningful. Only ever called after
+ * `isStringArray` has confirmed the input is actually a string array. */
 function normalizeList(items: readonly string[]): string[] {
   return items.map((item) => item.trim()).filter((item) => item.length > 0)
 }
 
 /**
- * Validates a submitted form against the seven check constraints and maps
- * it to a `VoiceProfileEdit`. The UI only ever offers values drawn from the
- * `*_OPTIONS` catalogues above, so this should never actually reject a
- * real submission -- but a stale client, a hand-crafted request, or a
- * future UI bug is exactly what CLAUDE.md means by "a type error at the
- * boundary is a better failure than 23514": this is that boundary.
+ * Validates a submitted form against the seven check constraints and the
+ * shape of the four array fields, and maps it to a `VoiceProfileEdit`. The
+ * UI only ever offers values drawn from the `*_OPTIONS` catalogues above
+ * and only ever builds its array fields by splitting a textbox, so this
+ * should never actually reject a real submission from `voice-editor.tsx`
+ * -- but a stale client, a hand-crafted request, or a future UI bug is
+ * exactly what CLAUDE.md means by "a type error at the boundary is a
+ * better failure than 23514": this is that boundary, for every field, not
+ * just the seven enums.
  */
 export function parseVoiceFormValues(values: VoiceFormValues): VoiceFormParseResult {
   if (!isAllowedValue(SENTENCE_RHYTHMS, values.sentenceRhythm)) {
@@ -203,6 +229,18 @@ export function parseVoiceFormValues(values: VoiceFormValues): VoiceFormParseRes
   }
   if (!isAllowedValue(FORMALITIES, values.formality)) {
     return { success: false, message: 'Formality is not one of the allowed options.' }
+  }
+  if (!isStringArray(values.openerPatterns)) {
+    return { success: false, message: 'Opener patterns must be a list of text.' }
+  }
+  if (!isStringArray(values.closerPatterns)) {
+    return { success: false, message: 'Closer patterns must be a list of text.' }
+  }
+  if (!isStringArray(values.vocabularyMarkers)) {
+    return { success: false, message: 'Vocabulary markers must be a list of text.' }
+  }
+  if (!isStringArray(values.bannedPhrases)) {
+    return { success: false, message: 'Banned phrases must be a list of text.' }
   }
 
   return {

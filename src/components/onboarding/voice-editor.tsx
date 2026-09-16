@@ -91,7 +91,12 @@ function ListEditor({
   function commit() {
     const trimmed = draft.trim()
     if (trimmed.length === 0) return
-    onAdd(trimmed)
+    // Skip a trimmed value already in the list rather than adding a second,
+    // identical entry -- there is nothing for two copies of the same
+    // pattern to mean that one copy doesn't already say.
+    if (!items.includes(trimmed)) {
+      onAdd(trimmed)
+    }
     setDraft('')
   }
 
@@ -409,7 +414,7 @@ export function VoiceEditor({
 
       {saveMessage && (
         <p
-          role="status"
+          role={saveMessage.kind === 'error' ? 'alert' : 'status'}
           className={`mt-6 text-sm ${saveMessage.kind === 'error' ? 'text-danger' : 'text-[var(--color-text-muted)]'}`}
         >
           {saveMessage.text}
