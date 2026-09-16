@@ -13,8 +13,21 @@ import { measureSample, measureSamples } from './measure-samples'
 describe('measureSamples', () => {
   it('measures average and maximum sentence length in words', () => {
     const m = measureSamples(['Short one. This sentence is noticeably longer than that one.'])
-    expect(m.avgSentenceLength).toBeCloseTo(5.5, 1)
-    expect(m.maxSentenceLength).toBe(9)
+    // "Short one." -> 2 words, "This sentence is noticeably longer than
+    // that one." -> 8 words. avg = (2 + 8) / 2 = 5, max = 8.
+    expect(m.avgSentenceLength).toBeCloseTo(5.0, 1)
+    expect(m.maxSentenceLength).toBe(8)
+  })
+
+  it('counts words in a following sentence without the leading separator', () => {
+    // Regression test: a clause after the first carries the space left by
+    // the previous sentence-ending mark. Splitting on whitespace without
+    // trimming first turns that leading space into a spurious extra "word"
+    // ("Hello there friend" -> 4 tokens instead of 3). Trimming first is
+    // what keeps this correct for every sentence but the first in a sample.
+    const m = measureSamples(['Hi. Hello there friend.'])
+    expect(m.maxSentenceLength).toBe(3)
+    expect(m.avgSentenceLength).toBeCloseTo(2.0, 1)
   })
 
   it('counts emoji by code point, not by UTF-16 unit', () => {
@@ -50,11 +63,11 @@ describe('measureSamples', () => {
 
   it('aggregates sentence and paragraph statistics across multiple samples', () => {
     const m = measureSamples(['One. Two words here.', 'Three word sentence now.'])
-    // Sample 1: 'One' -> 1 word, ' Two words here' -> 4 words (leading space
-    // from the clause split counts as a token -- see measure-samples.ts).
+    // Sample 1: 'One' -> 1 word, 'Two words here' -> 3 words.
     // Sample 2: 'Three word sentence now' -> 4 words.
+    // avg = (1 + 3 + 4) / 3 = 2.667, max = 4.
     expect(m.maxSentenceLength).toBe(4)
-    expect(m.avgSentenceLength).toBeCloseTo(3, 5)
+    expect(m.avgSentenceLength).toBeCloseTo(2.667, 2)
   })
 })
 

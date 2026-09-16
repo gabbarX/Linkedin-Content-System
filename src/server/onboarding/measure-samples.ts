@@ -93,17 +93,16 @@ export function measureSample(text: string): SampleCounts {
  * statistics below.
  *
  * A clause is the text between two sentence-ending marks ('.', '!', '?'),
- * splitting on the mark itself so it belongs to neither side. The word count
- * of a clause is a bare whitespace split of that raw (untrimmed) text: a
- * clause other than the first in a sample carries the space that followed the
- * previous mark, and a bare split counts that leading run as one token. That
- * is the convention this module uses throughout for "words in a sentence" --
- * it is what the fixtures in measure-samples.test.ts are written against.
+ * splitting on the mark itself so it belongs to neither side. Each clause is
+ * trimmed before the whitespace split -- a clause other than the first in a
+ * sample carries the space left by the previous mark, and splitting without
+ * trimming first turns that leading run into a spurious extra "word".
  */
 function clauseWordCounts(text: string): number[] {
   return text
     .split(/[.!?]+/)
-    .filter((clause) => clause.trim().length > 0)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause.length > 0)
     .map((clause) => clause.split(/\s+/).length)
 }
 
