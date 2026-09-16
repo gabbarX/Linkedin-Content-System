@@ -48,12 +48,11 @@ Full text and sources: **`docs/LINKEDIN-COMPLIANCE.md`**. Read it before touchin
 | `src/app/(app)/layout.tsx` | Authenticated shell + session guard (redirects to `/login`) |
 | `src/app/(app)/dashboard/page.tsx` | Three-band dashboard skeleton |
 | `src/lib/env.ts` | The only place `process.env` is read. `getServerEnv()` and `getPublicEnv()` throw naming the missing variable; `publicEnv` does not. |
-| `src/lib/supabase/{browser,server,admin}.ts` | Supabase clients, now used for **auth only**. `admin.ts` is `server-only`. |
-| `src/server/db/client.ts` | The Prisma client. **Never import this outside `src/server/db`** — ESLint blocks it. It sees every user's rows. |
+| `src/lib/supabase/{browser,server,admin}.ts` | Supabase clients, used for **auth only** — settled, not provisional. Every query goes through Prisma. `admin.ts` is `server-only` and currently unused. |
+| `src/server/db/client.ts` | `getPrisma()`. **Never import this outside `src/server/db`** — ESLint blocks it. It sees every user's rows. Construction is lazy so a credential-less build still works. |
 | `src/server/db/repositories/` | All data access. Every function takes `userId` first and scopes on it. This is the authorization model. |
 | `prisma/schema.prisma` | One model, `profiles`. The `auth` schema is deliberately absent. |
 | `prisma.config.ts` | Prisma 7 config. CLI uses `DIRECT_URL` (5432); runtime uses `DATABASE_URL` (6543, pooled). |
-| `src/lib/types/database.ts` | **Placeholder types.** Regenerate with `supabase gen types` once a project exists. |
 | `src/lib/auth/safe-next.ts` | Same-origin redirect validation. Tested. |
 | `src/components/ui/*` | shadcn primitives (Base UI) |
 | `src/proxy.ts` | Session refresh only — it does **not** guard routes. The `proxy` file convention replaced `middleware` in Next.js 16. |

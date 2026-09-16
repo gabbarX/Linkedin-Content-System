@@ -39,15 +39,6 @@ anywhere.
 **Trigger:** whoever first mounts `<Toaster />` in a layout — mount a provider
 with it, or strip the `useTheme()` call and the dependency.
 
-## Supabase
-
-**Thread the `Database` type through the three client factories.**
-`src/lib/types/database.ts` exists (hand-written placeholder) but none of
-`browser.ts` / `server.ts` / `admin.ts` pass it as `createClient<Database>`, so
-queries are untyped. Deferred because there is nothing to query yet and the
-placeholder will be replaced by `supabase gen types` output.
-**Trigger:** the first real query against `profiles`.
-
 ## Configuration
 
 **Split `src/lib/env.ts` into `env.public.ts` and `env.server.ts`.**
@@ -109,13 +100,66 @@ unverified claim in a document written to be followed literally.
 **Trigger:** the first time anyone actually opens the CMA application form —
 correct the description to match what it really shows.
 
+## Auth — open defect
+
+**The magic link does not complete a sign-in.** Deferred deliberately on
+2026-09-16: noted, not fixed, to be resolved before production.
+
+*What was observed*, first live attempt at 15:50 on 2026-09-16:
+
+- The email that arrived was Supabase's **"Confirm your email address"**
+  template — the *signup* template, not the magic-link one. Expected: the
+  address had never signed in, and `signInWithOtp` defaults to
+  `shouldCreateUser: true`.
+- Clicking it landed on `/login?error=exchange_failed`.
+
+*What that narrows it to.* `exchange_failed`, not `missing_code`, means the
+callback **did** receive a `?code=` and `exchangeCodeForSession` rejected it.
+That rules out the whole family of "the link never reached our callback"
+causes — Site URL misconfiguration, a redirect-allowlist rejection, and the
+implicit-flow case where the token arrives in the URL fragment where no server
+can see it. The redirect chain works; the exchange does not.
+
+*Why the cause was not in the logs.* The callback discarded the `AuthError`
+entirely, so the only record of the failure was a redirect. That is now fixed
+— `src/app/auth/callback/route.ts` logs name, message, code and status before
+redirecting, and it interpolates them into the string rather than passing the
+error as an object, because `Error.name` and `Error.message` are
+non-enumerable and serialise to `{}` in the dev server log.
+
+*Leading candidate — unverified, do not treat as diagnosed.* Driving the
+callback with a junk code during QA produced
+`AuthPKCECodeVerifierMissingError` (`pkce_code_verifier_not_found`, 400). That
+is the expected result for a request that never started a flow, so it is not
+evidence about the real failure — but it is the error the same code path
+raises, and the PKCE verifier is the one piece of state an emailed link can
+plausibly lose. Supabase's own SSR guidance for exactly this is to stop routing
+email links through `/auth/v1/verify` and instead template them as
+`{{ .TokenHash }}` against an `/auth/confirm` route that calls
+`verifyOtp({ type, token_hash })`, which removes the verifier dependency. If
+that is the fix it is one new route handler plus an email-template change in
+the Supabase dashboard.
+
+*How to reproduce without waiting on email.* Request a link, then read
+`.next/dev/logs/next-development.log` — the running dev server writes there,
+so the real `AuthError` is now recoverable without watching a terminal.
+
+**Trigger:** before the first real user, and before anything behind `(app)`
+can be browser-verified — see the note below.
+
 ## Milestone 2, before any feature code
 
 **Work through `docs/ACCOUNTS.md` steps 7–12 and perform the first live sign-in.**
 This is the first action of Milestone 2, not something to fit in later. Nothing
-in the auth path has ever executed: not the magic link, not Google OAuth, not
-the code exchange, not session refresh in `src/proxy.ts`, not the `(app)` layout
-guard, not RLS, not the `handle_new_user()` signup trigger. Tasks 4–6 were
-reviewed and verified offline — typecheck, lint, build, unit tests — because no
-Supabase project existed. That first real sign-in is the only test those three
-tasks have not had, and it is the one that matters.
+in the auth path has ever executed end to end: not the magic link, not Google
+OAuth, not the code exchange, not session refresh in `src/proxy.ts`, not RLS,
+not the `handle_new_user()` signup trigger. (The `(app)` layout guard *has* now
+executed — its signed-out branch redirects correctly — but only that branch.)
+
+**While auth is broken, nothing behind `(app)` can be browser-verified.** This
+is the part that is easy to underestimate: it is not only production that is
+blocked. `CLAUDE.md` requires browser verification before shipping, and the
+authenticated shell, the dashboard, and the whole of Milestone 2's onboarding
+flow are unreachable without a session. Changes to them can be typechecked,
+linted, unit-tested and built, and that is all. Every such change is shipping
+with its runtime behaviour untested until the first live sign-in works.

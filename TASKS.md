@@ -33,7 +33,7 @@ pole on carousels and the whole analytics loop. Full instructions in
 - [ ] Google OAuth client created, added to Supabase
 - [ ] Vercel project + environment variables
 - [x] **Applied `0001_profiles.sql` and `0002`** — verified live: RLS enabled AND forced, three policies scoped to `authenticated`, both triggers present, both functions pinned to `search_path=''`
-- [ ] ~~Regenerate `src/lib/types/database.ts`~~ — superseded by Prisma; the placeholder file is now unused and should be deleted
+- [x] ~~Regenerate `src/lib/types/database.ts`~~ — superseded by Prisma; the placeholder file was deleted
 
 ---
 
@@ -68,19 +68,35 @@ public Data API. See the amendments in spec §3 and §5.
 - [x] `src/server/db/repositories/profiles.ts` — every function takes `userId` first
 - [x] ESLint guard blocking raw-client imports — **verified to fire**
 - [x] Prisma smoke-tested against the live database
-- [ ] Port `(app)/layout.tsx` and the dashboard to read the profile via the repository
-- [ ] Delete the now-unused `src/lib/types/database.ts` placeholder
-- [ ] Decide whether supabase-js stays for anything beyond auth
+- [x] Port `(app)/layout.tsx` to read the profile via the repository — the nav
+      shows `full_name` when set, and a missing profiles row is logged rather
+      than swallowed, because it means the signup trigger did not fire
+- [x] `getPrisma()` is lazy — constructing the client at module scope would have
+      read the environment during `next build` the moment a route imported a
+      repository, breaking the documented credential-less build
+- [x] Delete the now-unused `src/lib/types/database.ts` placeholder
+- [x] **supabase-js stays for auth and nothing else.** Settled: all four call
+      sites are auth (`signInWithOtp`, `signInWithOAuth`, `exchangeCodeForSession`,
+      `getUser`, `signOut`). Every query goes through Prisma. `admin.ts` is
+      retained unused for service-role work that has no auth equivalent.
+- [ ] Verify the layout's **signed-in** branch in a browser — blocked on auth
+      (see below). Only the signed-out redirect has been exercised.
 
 ## Milestone 2 — onboarding
 
 **Do these two first, before any feature code:**
 
+- [!] **Auth is broken — the magic link does not complete a sign-in.** Attempted
+      live on 2026-09-16: the emailed link lands on `/login?error=exchange_failed`,
+      meaning the callback received a `?code=` and Supabase rejected the exchange.
+      Deferred by decision, to be fixed before production. Full evidence, what it
+      rules out, and the leading candidate are in `docs/BACKLOG.md`.
+      **This also blocks browser verification of everything behind `(app)`**,
+      including all of Milestone 2 below — not just production.
 - [ ] **Complete `docs/ACCOUNTS.md` steps 7-12 and perform the first live sign-in.**
-      Nothing in the auth path has ever executed — not the magic link, not Google
-      OAuth, not the code exchange, not session refresh, not the `(app)` guard, not
-      RLS, not the signup trigger. Milestone 1 verified them offline only. This is
-      the test that matters.
+      Still the test that matters. Nothing in the auth path has executed end to
+      end — not the magic link, not Google OAuth, not the code exchange, not
+      session refresh, not RLS, not the signup trigger.
 - [x] **Close the spec §7 gap** — `.claude/hooks/commit-gate.mjs` is a `PreToolUse`
       hook that runs the full gate before any `git commit` and exits 2 to block on
       failure. Verified end to end: allows on green, blocks on red, escape hatch
@@ -171,7 +187,6 @@ Small, non-blocking. Full context and triggers in `docs/BACKLOG.md`.
 
 - [ ] Delete the unused `@vitejs/plugin-react` dev dependency
 - [ ] Mount `<Toaster />` with a `ThemeProvider`, or strip `useTheme()` from `sonner.tsx`
-- [ ] Thread the `Database` type through the three Supabase client factories
 - [ ] Capture baseline screenshots so visual regression can actually pass rather than being inconclusive (see the browser-verification rule in `CLAUDE.md`)
 - [ ] Decide on mobile tap-target height — currently 32px, which passes WCAG AA (24px) but sits below the 44px platform guidance
 - [ ] Correct the two unverified LinkedIn-portal claims in `docs/ACCOUNTS.md` once you have seen the real forms
