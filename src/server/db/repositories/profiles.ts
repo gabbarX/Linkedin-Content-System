@@ -1,4 +1,5 @@
 import 'server-only'
+import { Prisma } from '@prisma/client'
 import { getPrisma } from '../client'
 
 /**
@@ -126,4 +127,59 @@ export async function getOnboardingStep(
     select: { onboarding_step: true },
   })
   return row ? (row.onboarding_step as OnboardingStep) : null
+}
+
+/**
+ * Partial interview answers, keyed by question id.
+ *
+ * This is the one deliberately unstructured thing in the schema. The interview
+ * is answered one question per screen, so a draft is by definition incomplete
+ * and cannot satisfy business_profiles' NOT NULL columns. Keeping it here as
+ * jsonb is what lets those columns stay non-nullable, which is what lets every
+ * consumer downstream take `string` instead of `string | null`.
+ *
+ * It is written and read whole, for one user, and never filtered on. Validation
+ * happens once, at the end, against the real schema in src/lib/onboarding.
+ */
+export type InterviewDraftValue = string | string[] | number
+export type InterviewDraft = Record<string, InterviewDraftValue>
+
+export async function getInterviewDraft(
+  userId: string,
+): Promise<InterviewDraft | null> {
+  const row = await getPrisma().profiles.findUnique({
+    where: { id: userId },
+    select: { interview_draft: true },
+  })
+
+  const draft = row?.interview_draft
+  // jsonb can legitimately hold an array, a string or a number. The database
+  // check constraint rejects those, but a null-safe narrowing here costs
+  // nothing and means a malformed draft reads as "no draft" rather than
+  // crashing the interview on the user's next visit.
+  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return null
+  return draft as InterviewDraft
+}
+
+/** Replaces the whole draft. Callers merge before saving. */
+export async function saveInterviewDraft(
+  userId: string,
+  draft: InterviewDraft,
+): Promise<void> {
+  await getPrisma().profiles.update({
+    where: { id: userId },
+    data: { interview_draft: draft },
+  })
+}
+
+/**
+ * Called once the interview has validated and business_profiles holds the real
+ * answers. Prisma.DbNull sets SQL NULL; Prisma.JsonNull would store the JSON
+ * value `null`, which is a different thing and would read back as a draft.
+ */
+export async function clearInterviewDraft(userId: string): Promise<void> {
+  await getPrisma().profiles.update({
+    where: { id: userId },
+    data: { interview_draft: Prisma.DbNull },
+  })
 }
