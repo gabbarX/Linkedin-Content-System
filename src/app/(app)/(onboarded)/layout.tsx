@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { onboardingRouteFor } from '@/lib/onboarding/steps'
 import { createServerClient } from '@/lib/supabase/server'
+import { requireEntitled } from '@/server/billing/entitlement'
 import { getProfile } from '@/server/db/repositories/profiles'
 
 /**
@@ -54,6 +55,18 @@ export default async function OnboardedLayout({
   if (onboardingRoute) {
     redirect(onboardingRoute)
   }
+
+  // Enforcement point 1 of 3 (see src/server/billing/entitlement.ts).
+  //
+  // Onboarding completeness and live entitlement are two independent facts and
+  // both are checked here, in this order. A user who has not yet reached the
+  // paywall step belongs on the step they are actually on, not on a billing
+  // page for a product they have not finished setting up — so the onboarding
+  // redirect goes first.
+  //
+  // Finishing the paywall step once is not a permanent grant: a mandate can be
+  // revoked and a card can fail, which is why `done` is not enough on its own.
+  await requireEntitled(user.id)
 
   return <>{children}</>
 }
