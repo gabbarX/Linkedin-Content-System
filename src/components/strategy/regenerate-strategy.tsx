@@ -93,10 +93,8 @@ export function RegenerateStrategy({
               <>
                 {' '}
                 {draftCount === 1
-                  ? 'The post you have written is kept'
-                  : `The ${draftCount} posts you have written are kept`}{' '}
-                — nothing you wrote is deleted — but they will no longer belong to a date on the
-                new plan. You will find them under “Not on your current plan” in Posts.
+                  ? 'The post you have written is kept — nothing you wrote is deleted — but it will no longer belong to a date on the new plan. You will find it under “Not on your current plan” in Posts.'
+                  : `The ${draftCount} posts you have written are kept — nothing you wrote is deleted — but they will no longer belong to a date on the new plan. You will find them under “Not on your current plan” in Posts.`}
               </>
             )}
           </DialogDescription>

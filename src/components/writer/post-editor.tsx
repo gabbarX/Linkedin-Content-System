@@ -155,8 +155,14 @@ export function PostEditor({
   }
 
   return (
-    <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-      <div>
+    // grid-cols-[minmax(0,1fr)] at the base width is load-bearing, not
+    // decoration. Without an explicit base column the single implicit column is
+    // `auto`, which sizes to max-content: at 375px the preview swelled to 361px
+    // around an unbreakable email address and pushed the whole page 10px wide.
+    // minmax(0,...) lets the column shrink below its content's min-content
+    // width, and min-w-0 does the same for the two children.
+    <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+      <div className="min-w-0">
         {/* ---------------------------------------------------------------- */}
         <section aria-labelledby="drafts-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -393,7 +399,7 @@ export function PostEditor({
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      <aside className="lg:sticky lg:top-10 lg:self-start">
+      <aside className="min-w-0 lg:sticky lg:top-10 lg:self-start">
         <h2 className="font-display text-xl">Preview</h2>
         <p className="mt-1 text-sm text-text-muted">How this reads in the feed.</p>
         <div className="mt-4">
