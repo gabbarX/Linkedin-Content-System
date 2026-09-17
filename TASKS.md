@@ -26,7 +26,16 @@ pole on carousels and the whole analytics loop. Full instructions in
 - [ ] LinkedIn Company Page, with you as super-admin
 - [ ] LinkedIn **App A** — add Share on LinkedIn + Sign In with LinkedIn (self-serve)
 - [ ] LinkedIn **App B** — clean app, Community Management API application filed
-- [ ] Stripe — product at $49/mo with a 14-day trial
+- [x] **Razorpay — Plan at ₹1,499/mo, monthly, no trial.** `plan_TcyWDCJsx4fnbQ`,
+      verified live 2026-09-17 against the test key pair: monthly, interval 1,
+      `149900` INR, active. Test keys are in `.env`
+- [ ] **YOU: create the Razorpay webhook** at
+      `https://yourdomain.com/api/razorpay/webhook`, subscribed to all ten
+      `subscription.*` events, and put its secret in `RAZORPAY_WEBHOOK_SECRET`.
+      `docs/ACCOUNTS.md` §13. Razorpay cannot reach `localhost`, so this is the
+      one leg that only works once deployed
+- [ ] **YOU: repeat the plan and keys in live mode** before launch — the plan id
+      differs between test and live, so `RAZORPAY_PLAN_ID` changes with the keys
 - [ ] Resend — domain verified
 - [x] Supabase project created — reachable, keys distinct
 - [x] `DATABASE_URL` + `DIRECT_URL` set and connecting (password percent-encoded)
@@ -276,11 +285,45 @@ R-M3-1..11). Twelve commits on `feat/strategy`, `npm run verify` green on each.
 
 ## Milestone 4 — paywall
 
-- [ ] Stripe checkout, single SKU, 14-day trial, card required
-- [ ] Gate: free through the strategy, card before the first generated post and before connecting LinkedIn
-- [ ] Webhook handling, trial state transitions — **TDD mandatory**
-- [ ] Migrate `z.string().url()` → `z.url()` while editing the env schema (see `docs/BACKLOG.md`)
-- [ ] Split `src/lib/env.ts` into public/server — Stripe key names shouldn't ship to the browser
+**Changed 2026-09-17, before any code:** Stripe became Razorpay, the 14-day
+trial was dropped, and the card moved **ahead of** the strategy. Spec §1.2, §3,
+§5, §7 and §8 amended first, because the spec is binding and working around it
+would have been the wrong move. Plan:
+`docs/superpowers/plans/2026-09-17-linkbud-paywall.md`.
+
+- [x] Env split into `env.public.ts` / `env.server.ts`, `z.string().url()` →
+      `z.url()`, Stripe keys replaced by `RAZORPAY_*` — both `docs/BACKLOG.md`
+      items this milestone owned, cleared
+- [x] Migration 0005 — `subscriptions`, applied and verified live: RLS enabled
+      AND forced, the status check constraint rejects an undocumented value
+      (23514), the Razorpay id is unique (23505), `handle_deleted_user` lists it
+      first. **Select-only under RLS**, unlike every other table: an insert
+      policy scoped to the caller's own row would still let anyone holding the
+      public anon key write `status = 'active'` onto themselves
+- [x] Razorpay's eight-state vocabulary and the plan constants, client-safe.
+      `isEntitled` tested as a table over the whole status list, so a ninth
+      status added without deciding what it means for access fails the test
+      rather than defaulting
+- [x] Both HMAC-SHA256 signature checks, constant-time — **TDD**
+- [x] `subscriptions` repository, `userId`-first **including the webhook path**:
+      the subscription carries `notes.user_id`, Razorpay echoes it back, and the
+      payload is signature-verified, so the write scopes on user AND
+      subscription id rather than on the id alone — **TDD**
+- [x] Razorpay HTTP client over plain `fetch`, no SDK, no new dependency — a
+      factory so tests inject a fake `fetch` and none touches the network
+- [x] Webhook mapping and route — **TDD**. The status comes from the entity,
+      never the event name, because a cancellation scheduled for the end of the
+      cycle arrives as `subscription.cancelled` while the entity is still
+      `active`. `last_event_at` orders deliveries inside the UPDATE's WHERE
+      clause, so a retried stale event cannot lock out a paying customer
+- [x] Onboarding reordered to interview → samples → voice → **paywall** →
+      strategy → done. Every step now has a page, which retires Ruling R3
+- [x] Gate enforced at **three** points, not one: the `(onboarded)` layout, the
+      `/onboarding/strategy` page that sits outside it, and both strategy server
+      actions — a server action is a public HTTP endpoint, and what a crafted
+      POST would skip past is six model calls billed to us
+- [x] `/billing` — paywall, status, next charge date, cancel-at-cycle-end
+- [ ] Browser QA
 
 ## Milestone 5 — the writer
 

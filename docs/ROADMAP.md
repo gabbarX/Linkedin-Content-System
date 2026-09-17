@@ -42,14 +42,15 @@ If approval never arrives, everything through Milestone 9 still ships and the pr
 
 ## Milestone 4 — Paywall
 
-- Stripe subscription at $49/month, 14-day trial, card required.
-- Gate positioned after the strategy is delivered and before any post is generated or LinkedIn is connected.
-- Webhook endpoint and trial state machine: trialing → active → past_due → canceled.
-- `trial_reminder` emails through Resend.
+- Razorpay subscription at ₹1,499/month, no trial, card required. Talked to over plain `fetch` — no SDK.
+- Gate positioned **before** the strategy is generated, and therefore before any post is generated or LinkedIn is connected. Spec §1.2 carries the reasoning: the strategy build is six model calls and by far the most expensive thing per user, while the Voice Profile the user sees first is one.
+- Webhook endpoint and the eight-state machine Razorpay defines: `created`, `authenticated`, `active`, `pending`, `halted`, `cancelled`, `completed`, `expired`. Entitlement is derived from that status on every request and never cached.
+- Cancel-at-cycle-end from inside the product, at `/billing`.
+- **No `trial_reminder` emails.** There is no trial to remind anyone about, so Resend is untouched by this milestone — a deliberate consequence of dropping the trial, not an omission. Resend arrives with the approval nudges in Milestone 6.
 
 TDD-mandatory: every state transition here moves real money.
 
-*Plan written when this milestone starts.*
+Plan: `docs/superpowers/plans/2026-09-17-linkbud-paywall.md`.
 
 ## Milestone 5 — Writer
 

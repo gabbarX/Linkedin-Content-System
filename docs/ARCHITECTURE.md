@@ -217,7 +217,7 @@ Core tables, all with RLS keyed to `auth.uid()`. Only `profiles` exists today; t
 | `outcome_reports` | Self-reported result per post |
 | `learnings` | text, category, confidence, source_signal, active |
 | `trend_items` | Radar output, per user, with relevance score and suggested angle |
-| `subscriptions` | Stripe customer, subscription, status, trial_end |
+| `subscriptions` | Razorpay subscription and plan ids, status, current period, cancel-at-cycle-end. **Select-only under RLS** — a self-writable entitlement row is a free subscription for anyone holding the anon key. |
 
 LinkedIn access and refresh tokens are encrypted at rest with `TOKEN_ENCRYPTION_KEY`. **No LinkedIn-returned social content is persisted beyond 48 hours.**
 
