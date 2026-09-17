@@ -141,6 +141,31 @@ describe('end_at is the end of the term, not a cancellation', () => {
   })
 })
 
+describe('notes are carried through, because they prove ownership', () => {
+  // `notes.user_id` is written by startSubscription and stored at Razorpay.
+  // It comes back over an authenticated server-to-server call, so the browser
+  // cannot influence it -- which makes it a stronger ownership proof than our
+  // own row, and one that survives the row having moved on to a newer
+  // subscription. See confirmSubscription.
+  it('exposes notes verbatim', async () => {
+    const subscription = await client(fakeFetch(SUBSCRIPTION_JSON)).fetchSubscription('sub_1')
+    expect(subscription.notes).toEqual({ user_id: 'u1' })
+  })
+
+  it('reads a missing or non-string note as absent rather than throwing', async () => {
+    const withOddNotes = await client(
+      fakeFetch({ ...SUBSCRIPTION_JSON, notes: { user_id: 42, other: 'x' } }),
+    ).fetchSubscription('sub_1')
+    expect(withOddNotes.notes.user_id).toBeUndefined()
+    expect(withOddNotes.notes.other).toBe('x')
+
+    const withNoNotes = await client(
+      fakeFetch({ ...SUBSCRIPTION_JSON, notes: undefined }),
+    ).fetchSubscription('sub_1')
+    expect(withNoNotes.notes).toEqual({})
+  })
+})
+
 describe('error handling', () => {
   it('raises RazorpayError carrying the HTTP status and Razorpay error code', async () => {
     const fetchImpl = fakeFetch(

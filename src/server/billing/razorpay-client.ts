@@ -73,6 +73,12 @@ const subscriptionSchema = z.object({
    * Cancel button. See the regression test in razorpay-client.test.ts.
    */
   end_at: z.number().nullable().optional(),
+  /**
+   * Whatever was attached at creation, round-tripped by Razorpay. LinkBud puts
+   * `user_id` here, which is what lets a webhook -- and a confirm -- prove
+   * ownership from the authoritative source rather than from our own row.
+   */
+  notes: z.record(z.string(), z.unknown()).optional(),
 })
 
 const errorSchema = z.object({
@@ -109,6 +115,25 @@ export type RazorpaySubscription = {
    * infers it, and this type gives nothing to infer it from.
    */
   endAt: Date | null
+  /**
+   * The notes Razorpay holds for this subscription, narrowed to string values.
+   * `notes.user_id` is LinkBud's ownership proof: it was written server-side at
+   * creation, is stored at Razorpay, and comes back over an authenticated
+   * server-to-server call, so nothing in the browser can influence it.
+   */
+  notes: Record<string, string>
+}
+
+/**
+ * Razorpay's notes are typed as arbitrary JSON. Only string values are of any
+ * use to us, and a non-string `user_id` must read as absent rather than be
+ * coerced into a string that could accidentally match a real id.
+ */
+function toStringNotes(notes: Record<string, unknown> | undefined): Record<string, string> {
+  const entries = Object.entries(notes ?? {}).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string',
+  )
+  return Object.fromEntries(entries)
 }
 
 /** Razorpay speaks unix seconds; the rest of the app speaks `Date`. */
@@ -127,6 +152,7 @@ function toSubscription(parsed: z.infer<typeof subscriptionSchema>): RazorpaySub
     chargeAt: secondsToDate(parsed.charge_at),
     endedAt: secondsToDate(parsed.ended_at),
     endAt: secondsToDate(parsed.end_at),
+    notes: toStringNotes(parsed.notes),
   }
 }
 

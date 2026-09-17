@@ -8,7 +8,8 @@ import { getServerEnv } from '@/lib/env.server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getProfile, updateProfile } from '@/server/db/repositories/profiles'
 import { getSubscription, upsertSubscription } from '@/server/db/repositories/subscriptions'
-import { entitlementFor, loadEntitlement } from './entitlement'
+import { isEntitled } from '@/lib/billing/subscription'
+import { loadEntitlement } from './entitlement'
 import { razorpayFromEnv } from './razorpay-client'
 import { checkoutSignatureIsValid } from './signatures'
 
@@ -73,15 +74,34 @@ const GENERIC_FAILURE =
 export async function startSubscription(): Promise<StartSubscriptionResult> {
   const userId = await requireUserId()
 
-  // A stale tab, or a double tap. Creating a second subscription would mean a
-  // second mandate and, eventually, two charges.
-  const { entitled } = await loadEntitlement(userId)
+  const { entitled, subscription: stored } = await loadEntitlement(userId)
   if (entitled) {
     return { ok: false, message: 'You already have an active subscription.' }
   }
 
   try {
     const { client, planId, keyId } = razorpayFromEnv()
+
+    // **Reuse an unpaid subscription rather than creating a second one.**
+    //
+    // Two tabs both tapping Subscribe used to create two Razorpay
+    // subscriptions, and the row can only hold one. The user then paid for
+    // whichever the *other* tab had replaced, and both recovery paths rejected
+    // it: `confirmSubscription` because the stored id no longer matched, and
+    // the webhook because it scopes on that same id. Money taken, no access,
+    // and nothing in the logs that looked like a failure.
+    //
+    // A subscription still at `created` has never been paid, so handing the
+    // same one back is safe -- and it means both tabs drive one subscription
+    // and one mandate. Razorpay is asked rather than our row trusted, because
+    // the row's status may predate an abandonment or an expiry.
+    if (stored) {
+      const existing = await client.fetchSubscription(stored.razorpaySubscriptionId).catch(() => null)
+      if (existing?.status === 'created') {
+        return { ok: true, subscriptionId: existing.id, keyId }
+      }
+    }
+
     const created = await client.createSubscription({
       planId,
       // `notes.user_id` is what lets every later webhook write stay scoped to a
@@ -152,22 +172,39 @@ export async function confirmSubscription(input: {
     return { ok: false, message: GENERIC_FAILURE }
   }
 
-  // (2) It is this user's subscription. A signature genuinely issued for
-  // someone else's subscription verifies perfectly; without this check it
-  // would activate whichever account happened to post it.
-  const stored = await getSubscription(userId)
-  if (!stored || stored.razorpaySubscriptionId !== input.subscriptionId) {
-    console.warn(
-      `LinkBud: user ${userId} confirmed subscription ${input.subscriptionId}, which is not theirs`,
-    )
-    return { ok: false, message: GENERIC_FAILURE }
-  }
+  // Note that this deliberately does NOT read the stored row. Nothing below
+  // needs it: ownership is proved from Razorpay's notes and entitlement from
+  // the status Razorpay reports, both of which are true regardless of what our
+  // row currently holds. Reading it would only invite someone to compare
+  // against it again.
 
   let entitled: boolean
   try {
-    // (3) Razorpay's own answer is what gets stored.
+    // (2) Razorpay's own answer is what gets stored, and what proves ownership.
     const { client } = razorpayFromEnv()
     const live = await client.fetchSubscription(input.subscriptionId)
+
+    // (3) It is this user's subscription -- proved by Razorpay's copy of the
+    // notes we wrote at creation, not by our own row.
+    //
+    // A signature genuinely issued for someone else's subscription verifies
+    // perfectly, so something must establish whose it is. Comparing against
+    // `stored.razorpaySubscriptionId` was the obvious choice and was wrong in
+    // one case that costs money: if a second tab has since replaced the row
+    // with a newer subscription, the user pays for the older one and the
+    // comparison rejects a genuine payment.
+    //
+    // `notes.user_id` does not have that failure mode. It was written
+    // server-side at creation, is held by Razorpay, and arrives over an
+    // authenticated server-to-server call -- so it is both a stronger proof
+    // than our row and one that survives the row moving on.
+    if (live.notes.user_id !== userId) {
+      console.warn(
+        `LinkBud: user ${userId} confirmed subscription ${input.subscriptionId}, whose notes name ` +
+          `${live.notes.user_id ?? 'nobody'}`,
+      )
+      return { ok: false, message: GENERIC_FAILURE }
+    }
 
     await upsertSubscription(userId, {
       razorpaySubscriptionId: live.id,
@@ -183,7 +220,11 @@ export async function confirmSubscription(input: {
       // the omitted field means the stored value survives.
     })
 
-    entitled = entitlementFor({ ...stored, status: live.status })
+    // Recomputed from the status Razorpay just reported. `stored` may be null
+    // -- the row can legitimately hold a different subscription by now (see
+    // above) -- and only the status decides entitlement, so the row is not
+    // needed for this.
+    entitled = isEntitled(live.status)
 
     if (entitled) {
       const profile = await getProfile(userId)

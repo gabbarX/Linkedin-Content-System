@@ -365,6 +365,20 @@ would have been the wrong move. Plan:
       `has_scheduled_changes` false in both), so there is no field to read: the
       type no longer carries the property at all, and the flag is written only
       where it is genuinely known.
+- [x] **Fixed during QA: two tabs could lose a payment.** `startSubscription`
+      created a fresh Razorpay subscription on every tap, and the row holds one.
+      Two tabs both tapping Subscribe left the row on tab B's subscription; a
+      payment in tab A was then rejected by `confirmSubscription` (the stored id
+      no longer matched) *and* dropped by the webhook (it scopes on that same
+      id). Money taken, no access, nothing in the logs shaped like a failure.
+      Two changes, both verified in a real two-tab run: `startSubscription` now
+      re-fetches an existing subscription still at `created` and hands the same
+      one back, so both tabs drive one subscription and one mandate; and
+      `confirmSubscription` proves ownership from Razorpay's own copy of
+      `notes.user_id` rather than from our row — written server-side at
+      creation, so nothing in the browser can influence it, and it survives the
+      row moving on. Re-run end to end afterwards: one row, `active`,
+      `cancel_at_cycle_end` false, step advanced.
 - [ ] **YOU: the one leg that cannot be tested from localhost** — Razorpay
       cannot deliver a webhook to `127.0.0.1`, so delivery *from Razorpay's own
       servers* is untested until this is deployed. The endpoint itself is
