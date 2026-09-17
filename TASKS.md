@@ -524,6 +524,37 @@ stands anyway until measured and found wanting.
 - [x] **Fixed during QA: number agreement in the Regenerate dialog** — with
       exactly one draft it read "The post you have written is kept … but
       **they** will no longer belong"
+- [x] **A review of the finished branch found the same half-applied boundary
+      CLAUDE.md warns about, in code written while quoting that warning.**
+      `saveFinalText` reverted an approved post to `draft`, because `approved`
+      means "this exact text was reviewed" or it means nothing.
+      `resolvePolish` also writes `final_text`, and did not — so Mark ready →
+      Polish it → Use the polished version left a post reading `approved`
+      whose text was a rewrite the user had seen once in a compare pane and
+      never approved. That is the one state Milestone 6 is told it can trust
+      before posting to a real feed, and no crafted request was needed: the
+      Polish button is not disabled once a post is marked ready. The same
+      function left the preference signals describing the pre-polish text and
+      recorded an outcome even with no polish pending. Both text-writing paths
+      now go through one helper that owns the revert, the recomputation and
+      clearing any pending polish. **Re-verified in a browser afterwards:**
+      marked ready → `approved`; polished and accepted → back to `draft`,
+      `approved_at` cleared, `edit_ratio` recomputed to 0.266 against the
+      promoted text rather than left at 0
+- [x] Three more from the same review: `saveFinalText` left a pending polish
+      attached to text it had just replaced (two tabs — one polishes, the
+      other saves — and accepting afterwards silently overwrote the saved
+      edit); `selectVariant` reset seven signal fields and missed
+      `polish_outcome`; and `replaceVariants` scoped its delete on both
+      columns but its insert on neither, which is latent rather than live
+      because both callers check first — "the callers are careful" is not an
+      authorization model. `saveDraft` also took an unbounded string on a
+      public endpoint, now capped at sixteen times LinkedIn's limit as a fault
+      ceiling, not a writing rule. And `buildBrief`'s system prompt told the
+      model it was being given a voice profile that the prompt builder never
+      rendered — it accepted `voice` and dropped it. Every fix has a test, and
+      each was confirmed to **fail** against the reintroduced defect rather
+      than merely pass against the fix
 - [ ] **YOU: nothing in this milestone is blocked on you.** Nothing here
       talks to LinkedIn or moves money, so unlike Milestones 0 and 4 there is
       no leg that only works once deployed
