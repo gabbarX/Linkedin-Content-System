@@ -16,9 +16,15 @@ import { z } from 'zod'
  * with ordinary bugs.
  */
 
-const getServerEnv = vi.fn<() => { OPENROUTER_API_KEY: string | undefined }>(
-  () => ({ OPENROUTER_API_KEY: 'sk-or-test' }),
-)
+type TestEnv = {
+  OPENROUTER_API_KEY: string | undefined
+  GEMINI_API_KEY: string | undefined
+}
+
+const getServerEnv = vi.fn<() => TestEnv>(() => ({
+  OPENROUTER_API_KEY: 'sk-or-test',
+  GEMINI_API_KEY: undefined,
+}))
 vi.mock('@/lib/env', () => ({ getServerEnv }))
 
 const schema = z.object({ tone: z.string() })
@@ -52,7 +58,10 @@ function respondWith(content: string, ok = true, status = 200) {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.clearAllMocks()
-  getServerEnv.mockReturnValue({ OPENROUTER_API_KEY: 'sk-or-test' })
+  getServerEnv.mockReturnValue({
+    OPENROUTER_API_KEY: 'sk-or-test',
+    GEMINI_API_KEY: undefined,
+  })
 })
 
 describe('completeJson', () => {
@@ -94,15 +103,18 @@ describe('completeJson', () => {
     ).rejects.toThrow(/not valid JSON/i)
   })
 
-  it('throws naming OPENROUTER_API_KEY when it is absent, without calling fetch', async () => {
-    getServerEnv.mockReturnValue({ OPENROUTER_API_KEY: undefined })
+  it('throws naming both keys when neither is set, without calling fetch', async () => {
+    getServerEnv.mockReturnValue({
+      OPENROUTER_API_KEY: undefined,
+      GEMINI_API_KEY: undefined,
+    })
     const fetchMock = respondWith('{"tone":"dry"}')
     vi.stubGlobal('fetch', fetchMock)
     const { completeJson } = await import('./client')
 
-    await expect(
-      completeJson({ system: 's', user: 'u', schema }),
-    ).rejects.toThrow(/OPENROUTER_API_KEY/)
+    const call = completeJson({ system: 's', user: 'u', schema })
+    await expect(call).rejects.toThrow(/GEMINI_API_KEY/)
+    await expect(call).rejects.toThrow(/OPENROUTER_API_KEY/)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -170,7 +182,7 @@ describe('completeJson', () => {
   it('sends the default model, the schema, and both messages', async () => {
     const fetchMock = respondWith('{"tone":"dry"}')
     vi.stubGlobal('fetch', fetchMock)
-    const { completeJson, DEFAULT_MODEL } = await import('./client')
+    const { completeJson, OPENROUTER } = await import('./client')
 
     await completeJson({ system: 'sys', user: 'usr', schema })
 
@@ -180,7 +192,7 @@ describe('completeJson', () => {
       'Bearer sk-or-test',
     )
     const body = requestBody(fetchMock)
-    expect(body.model).toBe(DEFAULT_MODEL)
+    expect(body.model).toBe(OPENROUTER.defaultModel)
     expect(body.messages).toEqual([
       { role: 'system', content: 'sys' },
       { role: 'user', content: 'usr' },
@@ -222,5 +234,100 @@ describe('completeJson', () => {
     await completeJson({ system: 's', user: 'u', schema, model: 'some/other' })
 
     expect(requestBody(fetchMock).model).toBe('some/other')
+  })
+})
+
+/**
+ * Provider selection. The gateway stays single -- one `completeJson`, one
+ * request shape, one validation path -- and the provider is a configuration
+ * fact rather than a caller's decision. Both providers speak the same
+ * OpenAI-shaped chat-completions API, which is why this is a table of two
+ * endpoints and not two clients.
+ */
+describe('provider selection', () => {
+  it('uses Gemini when GEMINI_API_KEY is set, even with an OpenRouter key present', async () => {
+    getServerEnv.mockReturnValue({
+      OPENROUTER_API_KEY: 'sk-or-test',
+      GEMINI_API_KEY: 'gem-test',
+    })
+    const fetchMock = respondWith('{"tone":"dry"}')
+    vi.stubGlobal('fetch', fetchMock)
+    const { completeJson, GEMINI } = await import('./client')
+
+    await completeJson({ system: 's', user: 'u', schema })
+
+    const { url, init } = firstCall(fetchMock)
+    expect(url).toBe(GEMINI.endpoint)
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer gem-test')
+    expect(requestBody(fetchMock).model).toBe(GEMINI.defaultModel)
+  })
+
+  it('uses OpenRouter when only OPENROUTER_API_KEY is set', async () => {
+    const fetchMock = respondWith('{"tone":"dry"}')
+    vi.stubGlobal('fetch', fetchMock)
+    const { completeJson, OPENROUTER } = await import('./client')
+
+    await completeJson({ system: 's', user: 'u', schema })
+
+    expect(firstCall(fetchMock).url).toBe(OPENROUTER.endpoint)
+    expect(requestBody(fetchMock).model).toBe(OPENROUTER.defaultModel)
+  })
+
+  it('names the active provider in a transport error, not a hard-coded one', async () => {
+    getServerEnv.mockReturnValue({
+      OPENROUTER_API_KEY: undefined,
+      GEMINI_API_KEY: 'gem-test',
+    })
+    vi.stubGlobal('fetch', respondWith('quota exceeded', false, 429))
+    const { completeJson } = await import('./client')
+
+    await expect(
+      completeJson({ system: 's', user: 'u', schema }),
+    ).rejects.toThrow(/Gemini returned 429: quota exceeded/)
+  })
+
+  it('names the active provider in an error object carried inside a 200', async () => {
+    // Gemini's OpenAI-compatible endpoint reports upstream trouble the same
+    // way OpenRouter does, so the same branch has to name the right provider.
+    getServerEnv.mockReturnValue({
+      OPENROUTER_API_KEY: undefined,
+      GEMINI_API_KEY: 'gem-test',
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({ error: { message: 'The model is overloaded.', code: 503 } }),
+    }))
+    const { completeJson } = await import('./client')
+
+    await expect(
+      completeJson({ system: 's', user: 'u', schema }),
+    ).rejects.toThrow(/Gemini returned an error \(503\): The model is overloaded\./)
+  })
+
+  it('reports the fallback model of whichever provider is active', async () => {
+    const { GEMINI, OPENROUTER, fallbackModel } = await import('./client')
+
+    getServerEnv.mockReturnValue({
+      OPENROUTER_API_KEY: 'sk-or-test',
+      GEMINI_API_KEY: 'gem-test',
+    })
+    expect(fallbackModel()).toBe(GEMINI.fallbackModel)
+
+    getServerEnv.mockReturnValue({
+      OPENROUTER_API_KEY: 'sk-or-test',
+      GEMINI_API_KEY: undefined,
+    })
+    expect(fallbackModel()).toBe(OPENROUTER.fallbackModel)
+  })
+
+  it('keeps the default and fallback models distinct, per provider', async () => {
+    // A fallback that is the same model on the same provider is not a
+    // fallback; it is the same call twice.
+    const { GEMINI, OPENROUTER } = await import('./client')
+
+    expect(GEMINI.defaultModel).not.toBe(GEMINI.fallbackModel)
+    expect(OPENROUTER.defaultModel).not.toBe(OPENROUTER.fallbackModel)
   })
 })

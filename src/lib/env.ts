@@ -15,6 +15,9 @@ const serverSchema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   DIRECT_URL: z.string().min(1).optional(),
   SHORT_LINK_DOMAIN: z.string().url().optional(),
+  // Either one configures the LLM gateway; Gemini wins when both are set.
+  // See src/server/llm/client.ts for why there are two.
+  GEMINI_API_KEY: z.string().min(1).optional(),
   OPENROUTER_API_KEY: z.string().min(1).optional(),
   EXA_API_KEY: z.string().min(1).optional(),
   LINKEDIN_CLIENT_ID: z.string().min(1).optional(),

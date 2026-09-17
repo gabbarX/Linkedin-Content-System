@@ -2,13 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 const completeJson = vi.fn()
+
+/**
+ * The second leg is now the active provider's own fallback model rather than
+ * a constant, so the suite stubs it. What is under test is unchanged: when a
+ * retry happens, how many times, and never after a permanent failure.
+ */
+const FALLBACK_MODEL = 'test/fallback-model'
+const fallbackModel = vi.fn(() => FALLBACK_MODEL)
+
 vi.mock('./client', async () => {
   const actual = await vi.importActual<typeof import('./client')>('./client')
-  return { ...actual, completeJson }
+  return { ...actual, completeJson, fallbackModel }
 })
 
 const { LlmError } = await import('./client')
-const { FALLBACK_MODEL, completeJsonWithFallback, createFallbackSession, isTransientProviderFailure } =
+const { completeJsonWithFallback, createFallbackSession, isTransientProviderFailure } =
   await import('./complete-with-fallback')
 
 const schema = z.object({ ok: z.boolean() })
@@ -17,6 +26,7 @@ const opts = { system: 's', user: 'u', schema }
 afterEach(() => {
   vi.clearAllMocks()
   vi.restoreAllMocks()
+  fallbackModel.mockReturnValue(FALLBACK_MODEL)
 })
 
 describe('isTransientProviderFailure', () => {
@@ -27,6 +37,10 @@ describe('isTransientProviderFailure', () => {
       new LlmError('OpenRouter returned 429: rate limited'),
       new LlmError('OpenRouter returned no content for model x (finish_reason: error). The provider may have refused the request or failed mid-reply.'),
       Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' }),
+      // The same shapes from the other provider: the matching is on the
+      // shape of the message, not on which provider produced it.
+      new LlmError('Gemini returned an error (503): The model is overloaded.'),
+      new LlmError('Gemini returned 429: quota exceeded'),
     ]
     for (const error of transient) expect(isTransientProviderFailure(error)).toBe(true)
   })
@@ -38,6 +52,10 @@ describe('isTransientProviderFailure', () => {
       new LlmError("The model's reply was not valid JSON: {"),
       new LlmError('OpenRouter returned 401: invalid key'),
       new LlmError('OpenRouter returned 404: unknown model'),
+      new LlmError('Gemini returned 400: invalid request'),
+      new LlmError(
+        'No LLM provider is configured, so no model call can be made. Set GEMINI_API_KEY or OPENROUTER_API_KEY. See docs/ACCOUNTS.md.',
+      ),
       new Error('ECONNRESET'),
       'a string',
     ]

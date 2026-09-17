@@ -10,9 +10,10 @@ import { getServerEnv } from '@/lib/env'
  * needs generateStrategy in Milestone 3, both of which need a model (see the
  * amendment in spec §8).
  *
- * OpenRouter is an HTTP API, so this is `fetch` and no dependency. Every model
- * call in LinkBud goes through here, which is what makes the model choice, the
- * spend and the failure behaviour one decision rather than a dozen.
+ * Both providers are HTTP APIs, so this is `fetch` and no dependency. Every
+ * model call in LinkBud goes through here, which is what makes the model
+ * choice, the spend and the failure behaviour one decision rather than a
+ * dozen.
  *
  * Deliberately absent:
  *
@@ -25,7 +26,6 @@ import { getServerEnv } from '@/lib/env'
  *     message. Structured extraction does not need history.
  */
 
-const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 
 /**
  * Free endpoints queue. Measured responses ran 8-12s on the default model and
@@ -56,6 +56,141 @@ const TIMEOUT_MS = 90_000
  * onboarding does.
  */
 export const DEFAULT_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free'
+
+/**
+ * OpenRouter's second leg, selected the same way the default was: among the
+ * free models advertising structured outputs on 2026-09-16, this one returned
+ * a schema-valid reply -- integer fields and enums intact -- in ~30 s. Same
+ * caveat as the default: free model ids are withdrawn without notice; if this
+ * starts returning 404, re-run the selection rather than reaching for a paid
+ * model by reflex.
+ *
+ * It lives here rather than in `complete-with-fallback` because that module
+ * imports this one, and a provider's two models belong to the provider.
+ */
+export const OPENROUTER_FALLBACK_MODEL = 'nex-agi/nex-n2.5-pro:free'
+
+/**
+ * Two providers, one gateway.
+ *
+ * The spec names OpenRouter as the single gateway and that is still what this
+ * module is: one entry point, one request shape, one validation path. What
+ * changed is that the *provider* behind it is a configuration fact rather
+ * than a constant, because on 2026-09-17 OpenRouter's free tier could not
+ * complete a strategy at all -- the pinned default answered `503 Upstream
+ * error from Nvidia: Service temporarily overloaded` on every call, and the
+ * free fallback then ran past the 90 s timeout on the real structured-output
+ * calls. Two consecutive browser runs of Regenerate failed at 131 s and
+ * 156 s. A product whose core action cannot complete is not blocked on a
+ * better retry; it is blocked on a provider that answers.
+ *
+ * Both providers expose the same OpenAI-shaped `/chat/completions` with
+ * `response_format: json_schema`, which is the whole reason this is a table
+ * of two endpoints and not two clients. If a third one ever needs a different
+ * request shape, that is the moment to split them -- not before.
+ *
+ * Selection is by key presence, Gemini first. Nothing in the app chooses a
+ * provider, and no caller can: a caller that pins a model pins it on whichever
+ * provider is configured.
+ */
+export type ProviderName = 'gemini' | 'openrouter'
+
+export type Provider = {
+  readonly name: ProviderName
+  /** Names the provider in every error this module throws. */
+  readonly label: string
+  /** Named in the "nothing is configured" error, so the fix is obvious. */
+  readonly keyName: 'GEMINI_API_KEY' | 'OPENROUTER_API_KEY'
+  readonly endpoint: string
+  /** The model every call uses unless the caller pinned one. */
+  readonly defaultModel: string
+  /** Used by `complete-with-fallback` after a transient provider failure. */
+  readonly fallbackModel: string
+}
+
+/**
+ * Gemini, via its OpenAI-compatible endpoint rather than the native
+ * `generateContent` API. The native API wants an OpenAPI-subset
+ * `responseSchema`, which would mean hand-converting the Zod schemas this
+ * module already emits as JSON Schema -- a second schema to keep in step with
+ * the first, which is how the two drift. The compatibility endpoint takes the
+ * same `response_format` block OpenRouter takes, so the request this module
+ * builds is unchanged.
+ *
+ * Models pinned the same way the OpenRouter ones were -- by sending the real
+ * strategy-plan schema and counting what came back, not by reading a spec
+ * sheet. Measured 2026-09-17, three consecutive runs each, every one
+ * schema-valid with the array lengths intact:
+ *
+ *   | model                 | runs   | latency        |
+ *   |-----------------------|--------|----------------|
+ *   | gemini-3.8-flash      | 3/3    | 6.0-7.5 s      |
+ *   | gemini-2.5-pro        | 3/3    | 13.6-16.2 s    |
+ *   | gemini-3.5-flash      | 1/1    | 9.9 s          |
+ *   | gemini-2.5-flash      | 1/1    | 9.0 s          |
+ *   | gemini-3.1-flash-lite | 1/1    | 2.4 s          |
+ *
+ * Flash is the default: the calls here are structured extraction against a
+ * fixed schema, not open-ended reasoning, and it was the fastest full model
+ * measured. The lite model was faster still and is not the default on
+ * purpose -- these prompts ask for judgement about a business, and that is
+ * the one thing worth paying latency for.
+ *
+ * Pro is the fallback rather than another flash because a fallback that
+ * shares a fleet with the thing that just failed is not a fallback. Both are
+ * stable ids, not `-preview` and not the moving `-latest` aliases: a default
+ * that can change under you is not a default.
+ */
+export const GEMINI: Provider = {
+  name: 'gemini',
+  label: 'Gemini',
+  endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+  keyName: 'GEMINI_API_KEY',
+  defaultModel: 'gemini-3.8-flash',
+  fallbackModel: 'gemini-2.5-pro',
+}
+
+export const OPENROUTER: Provider = {
+  name: 'openrouter',
+  label: 'OpenRouter',
+  keyName: 'OPENROUTER_API_KEY',
+  endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+  defaultModel: DEFAULT_MODEL,
+  fallbackModel: OPENROUTER_FALLBACK_MODEL,
+}
+
+/**
+ * The configured provider, or a throw naming both keys.
+ *
+ * Read inside a function body, never at module scope: the app must keep
+ * building with no credentials present.
+ */
+export function activeProvider(): Provider {
+  const env = getServerEnv()
+  if (env.GEMINI_API_KEY) return GEMINI
+  if (env.OPENROUTER_API_KEY) return OPENROUTER
+  throw new LlmError(
+    'No LLM provider is configured, so no model call can be made. Set ' +
+      `${GEMINI.keyName} or ${OPENROUTER.keyName}. See docs/ACCOUNTS.md.`,
+  )
+}
+
+/** The active provider's key. Separated so `activeProvider` stays pure-ish. */
+function apiKeyFor(provider: Provider): string {
+  const env = getServerEnv()
+  const key = provider.name === 'gemini' ? env.GEMINI_API_KEY : env.OPENROUTER_API_KEY
+  if (!key) {
+    throw new LlmError(
+      `${provider.keyName} is not set, so no model call can be made. See docs/ACCOUNTS.md.`,
+    )
+  }
+  return key
+}
+
+/** The model `complete-with-fallback` should retry on, for whichever provider is active. */
+export function fallbackModel(): string {
+  return activeProvider().fallbackModel
+}
 
 export type CompleteJsonOptions<T> = {
   system: string
@@ -104,27 +239,24 @@ export async function completeJson<T>({
   system,
   user,
   schema,
-  model = DEFAULT_MODEL,
+  model,
   schemaName = 'response',
 }: CompleteJsonOptions<T>): Promise<T> {
   // Inside the function body, never at module scope: the app must keep
   // building with no credentials present.
-  const { OPENROUTER_API_KEY } = getServerEnv()
-  if (!OPENROUTER_API_KEY) {
-    throw new LlmError(
-      'OPENROUTER_API_KEY is not set, so no model call can be made. See docs/ACCOUNTS.md.',
-    )
-  }
+  const provider = activeProvider()
+  const apiKey = apiKeyFor(provider)
+  const modelId = model ?? provider.defaultModel
 
-  const response = await fetch(ENDPOINT, {
+  const response = await fetch(provider.endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     signal: AbortSignal.timeout(TIMEOUT_MS),
     body: JSON.stringify({
-      model,
+      model: modelId,
       // json_schema, not json_object. Asking for "JSON" and naming the allowed
       // values in the prompt was measured returning "informal", "moderate" and
       // 0.25 for a three-value string enum. Sending the schema makes the
@@ -146,20 +278,20 @@ export async function completeJson<T>({
     // key. Dropping it would leave only a number.
     const body = await response.text().catch(() => '<unreadable>')
     throw new LlmError(
-      `OpenRouter returned ${response.status}: ${body.slice(0, 500)}`,
+      `${provider.label} returned ${response.status}: ${body.slice(0, 500)}`,
     )
   }
 
   const payload: unknown = await response.json()
 
-  // OpenRouter can answer 200 with an error object and no choices -- observed
+  // Either provider can answer 200 with an error object and no choices -- observed
   // live as {"error":{"message":"Upstream error from Nvidia: Service
   // temporarily overloaded","code":502}}. Reporting that as "no content"
   // hides the one fact the caller can act on, so it is surfaced first.
   const upstreamError = extractError(payload)
   if (upstreamError) {
     throw new LlmError(
-      `OpenRouter returned an error (${upstreamError.code ?? 'no code'}): ${upstreamError.message}`,
+      `${provider.label} returned an error (${upstreamError.code ?? 'no code'}): ${upstreamError.message}`,
     )
   }
 
@@ -171,7 +303,7 @@ export async function completeJson<T>({
     // from "provider refused" -- one is worth retrying, the other is not.
     const finishReason = extractFinishReason(payload)
     throw new LlmError(
-      `OpenRouter returned no content for model ${model}` +
+      `${provider.label} returned no content for model ${modelId}` +
         (finishReason ? ` (finish_reason: ${finishReason})` : '') +
         '. The provider may have refused the request or failed mid-reply.',
     )

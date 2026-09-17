@@ -1,5 +1,5 @@
 import 'server-only'
-import { LlmError, completeJson, type CompleteJsonOptions } from './client'
+import { LlmError, completeJson, fallbackModel, type CompleteJsonOptions } from './client'
 
 /**
  * One bounded fallback for model calls that a second provider could rescue.
@@ -16,8 +16,8 @@ import { LlmError, completeJson, type CompleteJsonOptions } from './client'
  *
  * Rules, so this stays a fallback and never becomes a loop:
  *
- *   * **At most one extra call per request**, and only against
- *     `FALLBACK_MODEL`.
+ *   * **At most one extra call per request**, and only against the active
+ *     provider's `fallbackModel`.
  *   * **Only for failures a different provider could fix** -- see
  *     `isTransientProviderFailure`. A missing key, a schema the model
  *     could not satisfy, or an unknown model fails exactly as before.
@@ -29,12 +29,10 @@ import { LlmError, completeJson, type CompleteJsonOptions } from './client'
  *     286 s. Once one call in a `FallbackSession` has fallen back, the rest
  *     go straight to the fallback model -- the provider was just observed
  *     to be down, and re-proving it five times costs the user minutes.
- *
- * Selected the same way the default was (`src/server/llm/client.ts`): among
- * the free models advertising structured outputs on 2026-09-16, this one
- * returned a schema-valid reply -- integer fields and enums intact -- in
- * ~30 s. Same caveat as the default: free model ids are withdrawn without
- * notice; if this starts returning 404, re-run the selection.
+ *   * **Whichever provider is configured.** The second leg is that
+ *     provider's own second model (`Provider.fallbackModel`), read at call
+ *     time rather than baked in here -- this module decides *when* to retry,
+ *     the provider table decides *what* to retry on.
  *
  * Used by the strategy generator (six calls, one session) and, since the
  * same outage was watched turning the voice step into a dead end during
@@ -42,12 +40,16 @@ import { LlmError, completeJson, type CompleteJsonOptions } from './client'
  * beside the gateway, not a change to it: completeJson itself still makes
  * exactly one call, and a caller that pins a model still gets exactly that.
  */
-export const FALLBACK_MODEL = 'nex-agi/nex-n2.5-pro:free'
 
 /**
- * Whether a different provider would plausibly succeed where this one
- * failed. Deliberately a list of observed shapes, not "anything that is
- * not a schema error": an unknown failure should surface, not be retried.
+ * Whether a different model would plausibly succeed where this one failed.
+ * Deliberately a list of observed shapes, not "anything that is not a schema
+ * error": an unknown failure should surface, not be retried.
+ *
+ * Matched on the shape of the message rather than the provider's name, so
+ * these hold for Gemini and OpenRouter alike -- both report a rate limit as
+ * "<provider> returned 429" and an overloaded upstream as an error object
+ * inside a 200.
  */
 export function isTransientProviderFailure(error: unknown): boolean {
   if (error instanceof Error && error.name === 'TimeoutError') return true
@@ -79,19 +81,20 @@ export function createFallbackSession(): FallbackSession {
     },
     async complete<T>(options: CompleteJsonOptions<T>): Promise<T> {
       if (options.model !== undefined) return completeJson(options)
-      if (fellBack) return completeJson({ ...options, model: FALLBACK_MODEL })
+      if (fellBack) return completeJson({ ...options, model: fallbackModel() })
 
       try {
         return await completeJson(options)
       } catch (error) {
         if (!isTransientProviderFailure(error)) throw error
+        const second = fallbackModel()
         fellBack = true
         console.warn(
-          `LinkBud: model call "${options.schemaName ?? 'response'}" failed on the default provider, falling back to ${FALLBACK_MODEL} for the rest of this generation - ${
+          `LinkBud: model call "${options.schemaName ?? 'response'}" failed on the default model, falling back to ${second} for the rest of this generation - ${
             error instanceof Error ? `${error.name}: ${error.message}` : String(error)
           }`,
         )
-        return completeJson({ ...options, model: FALLBACK_MODEL })
+        return completeJson({ ...options, model: second })
       }
     },
   }
