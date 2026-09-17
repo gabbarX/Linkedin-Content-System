@@ -67,7 +67,7 @@ Competitive note: Taplio, Supergrow, AuthoredUp and Kleo are **not** LinkedIn pa
 | Data API | Row-level security, keyed to `auth.uid()` | RLS is retained and must never be dropped: the anon key is public, so RLS is what protects the PostgREST path. It no longer constrains Prisma. |
 | Auth | Supabase Auth — **email + password**, magic link, Google | LinkedIn is a *connection*, never the login. See §3.1. Password sign-in added 2026-09-16 — see the amendment below. |
 | Hosting | Vercel + Vercel Cron | Cron drives the job engine. No separate worker service. |
-| LLM | OpenRouter (single gateway) | One API, trivial model switching, one bill. Anthropic `cache_control` passed through so prompt caching still applies to the large Voice Profile context. |
+| LLM | **Single gateway, two possible providers: Gemini or OpenRouter** | One module, one request shape, one bill. The provider is chosen by which key is set — Gemini first. Provider added 2026-09-17 — see the amendment below. |
 | Trends | Exa | Purpose-built for fresh, semantically filtered retrieval, and cheapest at this volume. Accessed through a `SearchProvider` interface so Tavily or Perplexity can be swapped in without touching `radar`. |
 | Billing | Stripe | Subscriptions + trial. |
 | Email | Resend | Approval nudges, trial reminders. |
@@ -102,7 +102,7 @@ LinkedIn access tokens expire (~60 days) and members can revoke them at any time
 
 ### 3.2 Embeddings
 
-OpenRouter does not serve embeddings. Exemplar matching in v1 uses **format and structure heuristics** (post length band, opener type, list vs narrative, paragraph count) rather than vector similarity. If semantic matching proves necessary, a dedicated embeddings key is added behind the same `llm` module interface.
+OpenRouter does not serve embeddings. Exemplar matching in v1 uses **format and structure heuristics** (post length band, opener type, list vs narrative, paragraph count) rather than vector similarity. If semantic matching proves necessary, a dedicated embeddings key is added behind the same `llm` module interface. (Gemini, added as a provider on 2026-09-17, does serve embeddings — so if that key is the one configured, Milestone 8 has the option without a third service. The v1 decision stands until heuristics are measured and found wanting.)
 
 ---
 
@@ -316,6 +316,34 @@ the emoji, hashtag and line-break counts — are computed in code rather than
 asked of the model: they are arithmetic over the samples, the writer depends on
 them being right, and counting is a known weakness of language models. The
 model supplies the judgement fields it is actually suited to.
+
+*Amended 2026-09-17.* The gateway gained a second possible provider. §3 named
+OpenRouter as the single gateway; it is still a single gateway — one module,
+one entry point, one request shape, one validation path — but the provider
+behind it is now chosen by which API key is configured, Gemini first.
+
+The reason is measured, not preferential. On 2026-09-17 OpenRouter's free tier
+could not complete a strategy at all: the pinned default model answered `503
+Upstream error from Nvidia: Service temporarily overloaded` on every call, and
+the free fallback then ran past the gateway's 90-second timeout on the real
+structured-output calls. Two consecutive browser runs of Regenerate failed, at
+131 s and 156 s, with the user-facing failure path working correctly each time.
+The free tier is additionally capped at 50 requests a day account-wide, and one
+strategy build is six calls. A product whose core action cannot complete is not
+blocked on a better retry policy; it is blocked on a provider that answers.
+
+Three things this deliberately does not change. There is still exactly one
+module that makes model calls, so the model choice, the spend and the failure
+behaviour remain one decision. No caller chooses a provider, and none can — a
+caller that pins a model pins it on whichever provider is configured. And both
+providers are reached over the same OpenAI-shaped `/chat/completions` with
+`response_format: json_schema`, which is why this is a table of two endpoints
+rather than two clients; a third provider needing a different request shape is
+the moment to split them, not before.
+
+`OPENROUTER_API_KEY` is therefore no longer required: from Milestone 2 onward
+the gateway needs `GEMINI_API_KEY` **or** `OPENROUTER_API_KEY`, and says so by
+name when it has neither.
 
 Milestone 0 runs in parallel from day one. The CMA application has a reported 3–4 month turnaround with no SLA, so it must be filed before any code that depends on it is planned.
 

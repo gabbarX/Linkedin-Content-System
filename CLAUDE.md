@@ -17,7 +17,7 @@ LinkBud is a LinkedIn content system for solo B2B coaches and consultants: it le
 | Data API | supabase-js + RLS | Still used for auth. RLS guards the public PostgREST path and must never be dropped. |
 | Auth | Supabase Auth — magic link + Google | **LinkedIn is never the login.** It is a revocable integration. |
 | Hosting | Vercel + Vercel Cron | Cron drives the job engine; no separate worker. |
-| LLM | OpenRouter (single gateway) | Not yet wired. Milestone 5. |
+| LLM | One gateway, two possible providers: **Gemini** or OpenRouter | `src/server/llm/client.ts`. Picked by which key is set, Gemini first. Wired early — Milestones 2 and 3 need a model. See `docs/ACCOUNTS.md` §15b. |
 | Trends | Exa behind a `SearchProvider` interface | Not yet wired. Milestone 8. |
 | Billing | Stripe — single SKU, $49/mo, 14-day trial | No plans, no metering, no credits. |
 | Email | Resend | Approval nudges, trial reminders. |

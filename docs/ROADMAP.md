@@ -55,7 +55,7 @@ TDD-mandatory: every state transition here moves real money.
 
 - Four-stage pipeline: brief → three parallel variants from one shared brief → user selection → optional polish pass.
 - Editor with a LinkedIn-accurate preview, with the two unchosen variants visible alongside so lines can be copied across by hand.
-- OpenRouter wiring, with Anthropic `cache_control` passed through so the Voice Profile context is cached.
+- Gateway wiring (built early, in Milestone 2), with provider-appropriate prompt caching so the Voice Profile context is not re-billed on every variant.
 - Preference signals recorded: chosen variant index, cross-copied text, and the draft-to-published diff.
 
 *Plan written when this milestone starts.*

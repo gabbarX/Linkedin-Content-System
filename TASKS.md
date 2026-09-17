@@ -194,7 +194,7 @@ question per screen.
       R11 — is the common case this milestone produces, and its copy says
       Milestone 3 hasn't shipped yet without implying the user left anything undone.
 
-## Milestone 3 — strategy ✅ complete (one live check outstanding)
+## Milestone 3 — strategy ✅ complete
 
 Plan: `docs/superpowers/plans/2026-09-16-linkbud-strategy.md` (10 tasks, rulings
 R-M3-1..11). Twelve commits on `feat/strategy`, `npm run verify` green on each.
@@ -237,19 +237,42 @@ R-M3-1..11). Twelve commits on `feat/strategy`, `npm run verify` green on each.
 - [x] Fixed on the way: the Milestone 1 nav overflowed a 375px viewport by
       ~250px on every authenticated page (`fix(app): keep the nav inside the
       viewport on phones`)
-- [ ] **Outstanding live check.** Generation was verified live end to end
-      through the real functions (36 slots on the right days, coherent pillars
-      and arc, week-one briefs whose proof stayed inside the profile; 114 s +
-      27 s with the default provider degraded). It was *not* verified from the
-      browser button: OpenRouter's account-wide free tier is 50 requests a day
-      and the live spikes used them all (resets 00:00 UTC). What the browser
-      showed instead was the failure path — the real rate-limit message and a
-      working Try again on all three model-backed buttons. The strategy and
-      briefs on the QA account were seeded through the real repositories.
-      **YOU:** after the reset, sign in as the QA account
-      (`iamankitgautamxd+linkbudqa@gmail.com`, seeded with `npm run seed:dev`),
-      open `/strategy`, tap Regenerate, and watch it land on a fresh version.
-      Or add credits to OpenRouter first — a spend, so your call.
+- [x] **Live check done 2026-09-17 — Regenerate watched landing on a fresh
+      version, from the browser button.** On Gemini the whole six-call build
+      took **27.7 s** and landed on version 2: four new pillars, new
+      positioning and arc, week 1 briefed in full, proof drawn from the
+      profile (the 31%→47% margin case, the 23 agencies) and
+      "None from the profile fits this post -- do not invent any." where
+      none did. `/calendar` shows all twelve weeks and 36 slots on
+      Mon/Wed/Fri, 21 Sep to 11 Dec; the dashboard's Next up followed to the
+      new week 1. Console clean, no horizontal overflow at 375 or 1440, no
+      fallback in the server log — every call succeeded on the default model.
+      **First attempted on OpenRouter, which could not do it:** two runs
+      failed at 131 s and 156 s, with the pinned default answering `503
+      Upstream error from Nvidia: Service temporarily overloaded` on every
+      call (confirmed with a direct probe) and the free fallback then running
+      past the gateway's 90 s timeout. Quota was not the cause — 45 of the 50
+      daily free requests were unused. Those two runs verified the *failure*
+      path end to end: the dialog names the version, the pending state holds
+      while the build runs, the error is surfaced rather than swallowed, Try
+      again works, and the existing strategy was left untouched, exactly as
+      the dialog copy promises.
+      **Not covered:** voice derivation was not re-exercised in the browser
+      (the QA account is past that step); it uses the same gateway and the
+      same one-call path, and the schema mechanism was proven against Gemini
+      directly, but the button itself was not re-tapped. Nor was the Gemini
+      fallback leg — an outage cannot be forced — so `gemini-2.5-pro` is
+      covered by unit tests and a direct probe, not live.
+- [x] **Gemini added as a second LLM provider** (spec amended 2026-09-17,
+      `docs/ACCOUNTS.md` §15b). The gateway is still single — one module, one
+      request shape, one validation path — but the provider behind it is chosen
+      by which key is set, Gemini first. Both speak the same OpenAI-shaped
+      `/chat/completions` with `response_format: json_schema`, so this is a
+      table of two endpoints, not two clients. Error messages name the provider
+      that actually answered; `isTransientProviderFailure` matches on the shape
+      of the message, not the provider's name, so the fallback rules hold for
+      both. `GEMINI_API_KEY` or `OPENROUTER_API_KEY` — the gateway names both
+      when it has neither.
 
 ## Milestone 4 — paywall
 

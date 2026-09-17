@@ -311,6 +311,42 @@ Every post's call to action is rewritten to a short link on a domain you own. It
 
 **Check it worked:** the short domain resolves to the app (a 404 from the app is fine at this stage — a registrar parking page is not).
 
+## 15b. The LLM provider — one key, either provider
+
+LinkBud makes every model call through one gateway (`src/server/llm/client.ts`).
+That gateway can speak to **Gemini** or to **OpenRouter**, and it picks by which
+key is present — **Gemini wins when both are set**. You need exactly one.
+
+| | Gemini | OpenRouter |
+|---|---|---|
+| Key from | [aistudio.google.com](https://aistudio.google.com/apikey) | [openrouter.ai](https://openrouter.ai/keys) |
+| Variable | `GEMINI_API_KEY` | `OPENROUTER_API_KEY` |
+| Default model | `gemini-3.8-flash` | `nvidia/nemotron-3-super-120b-a12b:free` |
+| Fallback model | `gemini-2.5-pro` | `nex-agi/nex-n2.5-pro:free` |
+
+Both Gemini models were pinned by measurement on 2026-09-17 — the real
+strategy-plan schema, three consecutive runs each, all schema-valid:
+`gemini-3.8-flash` at 6.0–7.5 s and `gemini-2.5-pro` at 13.6–16.2 s.
+
+**Why there are two.** OpenRouter's *free* tier was the original choice and it
+is genuinely free, but on 2026-09-17 it could not complete a strategy at all:
+the pinned model answered `503 Upstream error from Nvidia: Service temporarily
+overloaded` on every call, and the free fallback then ran past the gateway's
+90-second timeout on the real structured-output calls. Two consecutive
+Regenerate runs failed, at 131 s and 156 s. The free tier is also capped at
+**50 requests a day account-wide** (a strategy build is six), which is a
+constraint on QA before it is a constraint on customers.
+
+Gemini's free tier is higher and its paid tier is cheap at this volume, so it is
+the default when configured. Neither key is required to build or boot the app —
+both are optional in `src/lib/env.ts`, and a missing key surfaces as a named
+error at the point of the call, not a mystery at startup.
+
+**Check it worked:** with the key in `.env`, sign in and use any model-backed
+button (the voice step, or Regenerate on `/strategy`). A build that lands on a
+fresh version is the whole check. If the key is wrong you get
+`Gemini returned 400`/`403` in the server log rather than a silent failure.
+
 ## 16. Vercel project and environment variables
 
 - Go to `vercel.com` → **Add New → Project** → import this Git repository. Accept the detected Next.js settings.
@@ -331,7 +367,8 @@ Every post's call to action is rewritten to a short link on a domain you own. It
   | `LINKEDIN_CLIENT_ID` | from step 5 | Milestone 6 |
   | `LINKEDIN_CLIENT_SECRET` | from step 5 | Milestone 6 |
   | `LINKEDIN_REDIRECT_URI` | `https://yourdomain.com/api/linkedin/callback` | Must match step 5 exactly |
-  | `OPENROUTER_API_KEY` | from openrouter.ai | Milestone 5 |
+  | `GEMINI_API_KEY` | from aistudio.google.com | The LLM provider the app uses when set |
+  | `OPENROUTER_API_KEY` | from openrouter.ai | The alternative provider; used only when there is no Gemini key |
   | `EXA_API_KEY` | from exa.ai | Milestone 8 |
 
   `STRIPE_WEBHOOK_SECRET` is added in Milestone 4 when the endpoint exists.

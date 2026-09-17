@@ -124,9 +124,13 @@ success path of the strategy button could not be watched in the browser
 that day; the failure path was.
 **Trigger:** before the first paying customer, or before any load test — buy
 credits or move to a paid model. That is a spend, so the human decides.
+**Superseded 2026-09-17** for day-to-day use: `GEMINI_API_KEY` now selects
+Gemini instead, and OpenRouter is only used when no Gemini key is set. This
+entry stands for anyone running on the OpenRouter key.
 
 **The fallback model is pinned on one day's evidence.**
-`nex-agi/nex-n2.5-pro:free` in `src/server/llm/complete-with-fallback.ts`,
+`nex-agi/nex-n2.5-pro:free`, now in `src/server/llm/client.ts` beside the
+provider it belongs to,
 selected from the five free models advertising structured outputs on
 2026-09-16 (schema-valid with integer fields, ~30 s). Same caveats as the
 default model: withdrawn without notice, rate-limited, training-data policy.
