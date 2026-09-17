@@ -33,15 +33,28 @@ describe('dashboardCopyForStep', () => {
     expect(copy.needsYouNow).not.toMatch(/error|failed|wrong|sorry|in progress on our end/i)
   })
 
-  // The common case after Milestone 3 (Ruling R-M3-6): the user has a
-  // strategy and this week's briefs, and billing has not shipped. Must say
-  // the plan exists, must not claim it is still being built, must not say
-  // "finish onboarding" (they did).
-  it('tells a paywall-step user their strategy is ready and billing is coming', () => {
+  // The paywall step changed meaning in Milestone 4 (spec 1.2, amended
+  // 2026-09-17). It used to sit AFTER the strategy, so its copy said the plan
+  // was ready and billing was coming. It now sits BEFORE, so that copy is
+  // exactly backwards: this user has a voice profile and NO strategy, and the
+  // one thing being asked of them is the card.
+  it('asks a paywall-step user for the card and does not claim a strategy exists', () => {
     const copy = dashboardCopyForStep('paywall')
-    expect(copy.needsYouNow).toMatch(/billing/i)
-    expect(copy.needsYouNow).toMatch(/strategy .*ready|ready on the strategy page/i)
-    expect(copy.needsYouNow).not.toMatch(/finish onboarding|hasn't been built|in progress/i)
+    expect(copy.needsYouNow).toMatch(/subscription|subscribe|card|billing/i)
+    expect(copy.needsYouNow).not.toMatch(/strategy .*ready|ready on the strategy page/i)
+    expect(copy.needsYouNow).not.toMatch(/finish onboarding/i)
+  })
+
+  // Nothing here is allowed to name a milestone or apologise for an unbuilt
+  // feature: the user did not read the roadmap, and "we'll prompt you as soon
+  // as it is" was true for a fortnight and false afterwards.
+  it('never mentions a milestone or an unshipped feature to the user', () => {
+    for (const step of ONBOARDING_STEPS) {
+      const copy = dashboardCopyForStep(step)
+      expect(`${copy.needsYouNow} ${copy.world} ${copy.working}`).not.toMatch(
+        /milestone|not shipped|isn't set up on your account/i,
+      )
+    }
   })
 
   // Through Milestone 2 this read "Your radar starts once your strategy

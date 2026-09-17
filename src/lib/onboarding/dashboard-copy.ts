@@ -20,11 +20,18 @@ import type { OnboardingStep } from './steps'
  * and because a defensive fallback is worth more than a stale message if
  * that guard is ever weakened.
  *
- * `paywall` is where every user who finishes Milestone 3's strategy step
- * lands (Ruling R-M3-6): they have a strategy and this week's briefs, and
- * Milestone 4's billing has not shipped. Its copy must be true for exactly
- * that person -- their plan exists and is on the Strategy page; nothing is
- * being asked of them yet.
+ * `paywall` changed meaning in Milestone 4 (spec §1.2, amended 2026-09-17).
+ * It used to sit *after* the strategy step, so its copy said the plan was
+ * ready and nothing was being asked. The card now comes *before* the strategy,
+ * which makes that exactly backwards: a user at this step has a Voice Profile,
+ * has no strategy, and has one thing to do. Like the four steps above it, it
+ * is unreachable here in normal use -- the guard sends a `paywall` user to
+ * `/billing` -- but the copy has to be true if it is ever seen.
+ *
+ * No copy in this file names a milestone or apologises for an unbuilt feature.
+ * The user did not read the roadmap, and the previous "we'll prompt you here
+ * as soon as it is" was true for a fortnight and false afterwards. A test
+ * pins it.
  *
  * `done` is the step once every milestone through billing has shipped and
  * actually run for this user -- not reachable by any code path yet, but a
@@ -76,7 +83,7 @@ export function dashboardCopyForStep(step: OnboardingStep): DashboardBandCopy {
     case 'paywall':
       return {
         needsYouNow:
-          "Nothing to approve yet. Your strategy and this week's briefs are ready on the Strategy page; billing isn't set up on your account yet, and we'll prompt you here as soon as it is.",
+          'Start your subscription to have your 12-week strategy built. Your voice profile is saved and waiting.',
         world: RADAR_NOT_YET,
         working: NO_PUBLISHED_POSTS,
       }
