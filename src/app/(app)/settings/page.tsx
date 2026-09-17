@@ -8,8 +8,16 @@ import { ChevronRight } from 'lucide-react'
  * 404'd until now (`docs/BACKLOG.md`), deliberately -- the nav reflects the
  * real information architecture from spec §6, not placeholders invented to
  * fill it in early. This page lists exactly the sections that exist today
- * (one: the business profile), not a settings surface for the rest of the
- * product. Milestone 8 owns everything else that eventually lives here.
+ * (the business profile, and billing since Milestone 4), not a settings
+ * surface for the rest of the product. Milestone 8 owns everything else that
+ * eventually lives here.
+ *
+ * Billing links out to `/billing` rather than duplicating it at
+ * `/settings/billing`: the paywall a new user meets and the management screen
+ * a paying customer opens are one page, so there is one set of copy to keep
+ * true. It also has to stay reachable from here, because a lapsed customer is
+ * redirected out of the product and `/settings` is one of the few places they
+ * can still get to.
  */
 
 const SECTIONS = [
@@ -17,6 +25,11 @@ const SECTIONS = [
     href: '/settings/business',
     title: 'Business profile',
     description: 'The offer, audience and voice inputs every draft is built from.',
+  },
+  {
+    href: '/billing',
+    title: 'Billing',
+    description: 'Your subscription, the next charge date, and how to cancel.',
   },
 ]
 
