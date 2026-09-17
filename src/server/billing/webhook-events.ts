@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SUBSCRIPTION_STATUSES } from '@/lib/billing/subscription'
+import { SUBSCRIPTION_STATUSES, type SubscriptionStatus } from '@/lib/billing/subscription'
 import type { SubscriptionEventPatch } from '@/server/db/repositories/subscriptions'
 
 /**
@@ -38,9 +38,9 @@ const entitySchema = z.object({
   charge_at: z.number().nullable().optional(),
   ended_at: z.number().nullable().optional(),
   /**
-   * Set when a cancellation is scheduled. Razorpay leaves `status` at `active`
-   * in that case, so this is the only signal that the subscription is winding
-   * down.
+   * The end of the subscription's TERM — ten years out for LinkBud's plan —
+   * not a cancellation. Parsed so the schema matches what actually arrives, and
+   * read nowhere. See `razorpay-client.ts` for the bug that reading it caused.
    */
   end_at: z.number().nullable().optional(),
   notes: z.record(z.string(), z.unknown()).optional(),
@@ -57,6 +57,34 @@ const eventSchema = z.object({
 
 function secondsToDate(value: number | null | undefined): Date | null {
   return typeof value === 'number' ? new Date(value * 1000) : null
+}
+
+/**
+ * Whether this event establishes anything about a scheduled cancellation.
+ *
+ * Exactly one event does. `subscription.cancelled` naming an entity that is
+ * still `active` is Razorpay saying "cancellation accepted, and the customer
+ * keeps the cycle they have paid for" — the event name and the entity status
+ * disagree, and that disagreement *is* the signal. The same event naming an
+ * entity that has reached `cancelled` means it is simply over, and the flag no
+ * longer describes anything.
+ *
+ * Every other event returns `{}`, so `applySubscriptionEvent` leaves the column
+ * alone. Writing `false` from a `subscription.charged` that arrived after a
+ * scheduled cancellation would silently un-cancel it in our copy, and
+ * `/billing` would offer to cancel something already cancelled.
+ *
+ * This deliberately does **not** look at `end_at`. That field is the end of the
+ * subscription's ten-year term and is present on every healthy subscription; an
+ * earlier version read it as a cancellation and told every paying customer that
+ * their access ended next month.
+ */
+function cancellationFrom(
+  event: string,
+  status: SubscriptionStatus,
+): { cancelAtCycleEnd?: boolean } {
+  if (event !== 'subscription.cancelled') return {}
+  return { cancelAtCycleEnd: status === 'active' }
 }
 
 export type WebhookApply = {
@@ -93,11 +121,7 @@ export function readWebhookEvent(body: unknown): WebhookApply | null {
       chargeAt: secondsToDate(entity.charge_at),
       endedAt: secondsToDate(entity.ended_at),
       razorpayCustomerId: entity.customer_id ?? null,
-      // Only meaningful while the subscription is still running. Once status
-      // is genuinely `cancelled` the cycle is over and `end_at` is history, not
-      // a pending change — reporting it as scheduled would make /billing offer
-      // to keep a subscription that has already ended.
-      cancelAtCycleEnd: typeof entity.end_at === 'number' && entity.status === 'active',
+      ...cancellationFrom(parsed.data.event, entity.status),
       eventAt: new Date(parsed.data.created_at * 1000),
     },
   }

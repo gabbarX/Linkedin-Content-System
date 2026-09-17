@@ -89,22 +89,54 @@ describe('readWebhookEvent', () => {
     ).toBeNull()
   })
 
-  it('treats end_at on an active subscription as a scheduled cancellation', () => {
-    expect(
-      readWebhookEvent(event('subscription.cancelled', { status: 'active', end_at: 1760745600 }))
-        ?.patch.cancelAtCycleEnd,
-    ).toBe(true)
-    expect(readWebhookEvent(event('subscription.activated'))?.patch.cancelAtCycleEnd).toBe(false)
-  })
+  describe('cancelAtCycleEnd is written only when an event establishes it', () => {
+    // This block replaces tests that asserted the opposite and were wrong.
+    // They encoded `end_at != null && status === 'active'`, and end_at is the
+    // end of the ten-year TERM, present on every healthy subscription -- so
+    // every paying customer was recorded as cancelling. Caught in browser QA
+    // on 2026-09-17, four minutes after a real test-mode payment, when
+    // /billing said "Access ends 16 October 2026" and hid the Cancel button.
 
-  it('does not call an already-cancelled subscription scheduled-for-cancellation', () => {
-    // Once status is genuinely cancelled the cycle is over, so end_at is
-    // history rather than a pending change. Reporting it as scheduled would
-    // make /billing offer to keep a subscription that has already ended.
-    expect(
-      readWebhookEvent(event('subscription.cancelled', { status: 'cancelled', end_at: 1760745600 }))
-        ?.patch.cancelAtCycleEnd,
-    ).toBe(false)
+    it('sets it when subscription.cancelled names an entity that is still active', () => {
+      // The event name and the entity status disagreeing IS the signal: the
+      // cancellation is accepted and the customer keeps the paid-for cycle.
+      expect(
+        readWebhookEvent(event('subscription.cancelled', { status: 'active' }))?.patch
+          .cancelAtCycleEnd,
+      ).toBe(true)
+    })
+
+    it('clears it when the cancellation has actually landed', () => {
+      expect(
+        readWebhookEvent(event('subscription.cancelled', { status: 'cancelled' }))?.patch
+          .cancelAtCycleEnd,
+      ).toBe(false)
+    })
+
+    it('never sets it from end_at, however far out or near', () => {
+      for (const endAt of [2102524200, 1760745600, null]) {
+        const read = readWebhookEvent(event('subscription.activated', { end_at: endAt }))
+        expect(read?.patch.cancelAtCycleEnd).toBeUndefined()
+      }
+    })
+
+    it.each([
+      ['subscription.activated'],
+      ['subscription.charged'],
+      ['subscription.updated'],
+      ['subscription.pending'],
+      ['subscription.halted'],
+      ['subscription.authenticated'],
+      ['subscription.paused'],
+      ['subscription.resumed'],
+      ['subscription.completed'],
+    ])('omits it entirely for %s, so a stored cancellation survives', (name) => {
+      // Omitted, not false. A subscription.charged arriving after a scheduled
+      // cancellation must not silently un-cancel it in our copy.
+      const read = readWebhookEvent(event(name))
+      expect(read).not.toBeNull()
+      expect(read?.patch).not.toHaveProperty('cancelAtCycleEnd')
+    })
   })
 
   it.each([['payment.captured'], ['payment.failed'], ['order.paid'], ['invoice.paid']])(

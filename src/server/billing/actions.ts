@@ -101,7 +101,9 @@ export async function startSubscription(): Promise<StartSubscriptionResult> {
       currentEnd: created.currentEnd,
       chargeAt: created.chargeAt,
       endedAt: created.endedAt,
-      cancelAtCycleEnd: created.cancelAtCycleEnd,
+      // cancelAtCycleEnd is deliberately not written here. A fetched entity
+      // does not carry that fact, and a brand-new subscription has not been
+      // cancelled -- the column's `false` default is the truth.
     })
 
     return { ok: true, subscriptionId: created.id, keyId }
@@ -176,7 +178,9 @@ export async function confirmSubscription(input: {
       currentEnd: live.currentEnd,
       chargeAt: live.chargeAt,
       endedAt: live.endedAt,
-      cancelAtCycleEnd: live.cancelAtCycleEnd,
+      // Left alone, not overwritten. A confirm establishes the status and the
+      // period; it says nothing about whether a cancellation is scheduled, and
+      // the omitted field means the stored value survives.
     })
 
     entitled = entitlementFor({ ...stored, status: live.status })
@@ -246,7 +250,10 @@ export async function cancelSubscription(): Promise<BillingActionResult> {
       currentEnd: cancelled.currentEnd,
       chargeAt: cancelled.chargeAt,
       endedAt: cancelled.endedAt,
-      cancelAtCycleEnd: cancelled.cancelAtCycleEnd,
+      // The one place this is known for certain: we just asked Razorpay to
+      // cancel at cycle end and it accepted. Not inferred from the response --
+      // asserted from the request.
+      cancelAtCycleEnd: true,
     })
   } catch (error) {
     console.error(

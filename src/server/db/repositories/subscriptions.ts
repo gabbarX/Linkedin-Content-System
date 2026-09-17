@@ -174,8 +174,9 @@ export async function upsertSubscription(
 }
 
 /**
- * The write a verified webhook implies. Every field is required — a webhook
- * carries the whole entity, so there is nothing to leave alone.
+ * The write a verified webhook implies. Almost every field is required — a
+ * webhook carries the whole entity, so there is nothing to leave alone — with
+ * one exception noted on `cancelAtCycleEnd` below.
  */
 export type SubscriptionEventPatch = {
   status: SubscriptionStatus
@@ -184,7 +185,17 @@ export type SubscriptionEventPatch = {
   chargeAt: Date | null
   endedAt: Date | null
   razorpayCustomerId: string | null
-  cancelAtCycleEnd: boolean
+  /**
+   * Optional, unlike every other field here, and deliberately so.
+   *
+   * A webhook entity does not carry "a cancellation is scheduled" as a field.
+   * Only one event establishes it -- `subscription.cancelled` naming an entity
+   * that is still `active` -- so every other event omits it and leaves the
+   * stored value alone. Writing `false` on, say, a `subscription.charged` that
+   * arrived after a scheduled cancellation would silently un-cancel it in our
+   * copy, and /billing would offer to cancel something already cancelled.
+   */
+  cancelAtCycleEnd?: boolean
   /** The event's own timestamp, not now(). This is what orders deliveries. */
   eventAt: Date
 }
@@ -224,7 +235,9 @@ export async function applySubscriptionEvent(
       charge_at: patch.chargeAt,
       ended_at: patch.endedAt,
       razorpay_customer_id: patch.razorpayCustomerId,
-      cancel_at_cycle_end: patch.cancelAtCycleEnd,
+      ...(patch.cancelAtCycleEnd !== undefined && {
+        cancel_at_cycle_end: patch.cancelAtCycleEnd,
+      }),
       last_event_at: patch.eventAt,
     },
   })

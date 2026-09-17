@@ -61,10 +61,16 @@ const subscriptionSchema = z.object({
   charge_at: z.number().nullable().optional(),
   ended_at: z.number().nullable().optional(),
   /**
-   * Set when a cancellation is scheduled for the end of the cycle. Razorpay
-   * leaves `status` at `active` in that case — which is correct, the customer
-   * paid for the rest of the period — so this is the only signal that the
-   * subscription is winding down.
+   * When the subscription's **term** ends — `total_count` cycles after it
+   * started, so ten years out for LinkBud's plan. Razorpay returns it on every
+   * healthy subscription.
+   *
+   * It is **not** a cancellation signal, and reading it as one is a mistake
+   * this codebase has already made: an earlier version derived
+   * `cancelAtCycleEnd = end_at != null && status === 'active'`, which marked
+   * every paying customer as cancelling. `/billing` told a customer who had
+   * paid four minutes earlier that their access ended next month, and hid the
+   * Cancel button. See the regression test in razorpay-client.test.ts.
    */
   end_at: z.number().nullable().optional(),
 })
@@ -85,8 +91,18 @@ export type RazorpaySubscription = {
   currentEnd: Date | null
   chargeAt: Date | null
   endedAt: Date | null
-  /** True when a cancellation is scheduled for the end of the current cycle. */
-  cancelAtCycleEnd: boolean
+  /**
+   * The end of the subscription's term — see the schema comment. Exposed
+   * verbatim and interpreted nowhere.
+   *
+   * There is deliberately **no `cancelAtCycleEnd` here.** A fetched entity does
+   * not carry that fact: Razorpay leaves `status` at `active` for a scheduled
+   * cancellation and sets no flag this API surfaces. It is known in exactly two
+   * places — when LinkBud itself calls `cancelAtCycleEnd()`, and when a
+   * `subscription.cancelled` webhook arrives naming an entity that is still
+   * active. Both write it explicitly. Nothing infers it.
+   */
+  endAt: Date | null
 }
 
 /** Razorpay speaks unix seconds; the rest of the app speaks `Date`. */
@@ -104,7 +120,7 @@ function toSubscription(parsed: z.infer<typeof subscriptionSchema>): RazorpaySub
     currentEnd: secondsToDate(parsed.current_end),
     chargeAt: secondsToDate(parsed.charge_at),
     endedAt: secondsToDate(parsed.ended_at),
-    cancelAtCycleEnd: typeof parsed.end_at === 'number' && parsed.status === 'active',
+    endAt: secondsToDate(parsed.end_at),
   }
 }
 

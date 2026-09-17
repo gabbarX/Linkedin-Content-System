@@ -11,6 +11,9 @@ const SUBSCRIPTION_JSON = {
   current_end: 1760745600,
   charge_at: 1760745600,
   ended_at: null,
+  // The end of the 120-cycle TERM -- 2036-08-16, ten years out. Razorpay
+  // returns this on every healthy subscription. See the regression test below.
+  end_at: 2102524200,
   total_count: 120,
   paid_count: 1,
   short_url: 'https://rzp.io/rzp/abc',
@@ -105,6 +108,36 @@ describe('createSubscription', () => {
       notes: {},
     })
     expect(subscription.customerId).toBeNull()
+  })
+})
+
+describe('end_at is the end of the term, not a cancellation', () => {
+  // Observed live on 2026-09-17 against a freshly paid test subscription
+  // (sub_TczLoX8CTzaF1b): status 'active', current_end 1792175400
+  // (2026-10-16), end_at 2102524200 (2036-08-16), total_count 120,
+  // paid_count 1, has_scheduled_changes false. Nobody had cancelled anything.
+  //
+  // The first version of this client inferred
+  // `cancelAtCycleEnd = end_at != null && status === 'active'`, which marked
+  // EVERY paying customer as cancelling: /billing told them "Access ends 16
+  // October 2026" and hid the Cancel button, minutes after they paid.
+  //
+  // The lesson is not "use a different field". It is that the fetched entity
+  // does not carry the fact, so the client must not pretend to derive it.
+  it('exposes end_at as a plain date and derives nothing from it', async () => {
+    const subscription = await client(fakeFetch(SUBSCRIPTION_JSON)).fetchSubscription('sub_1')
+    expect(subscription.endAt).toEqual(new Date(2102524200 * 1000))
+    expect(subscription).not.toHaveProperty('cancelAtCycleEnd')
+  })
+
+  it('keeps the term end far beyond the current cycle, where it belongs', async () => {
+    const subscription = await client(fakeFetch(SUBSCRIPTION_JSON)).fetchSubscription('sub_1')
+    expect(subscription.status).toBe('active')
+    expect(subscription.endAt?.getUTCFullYear()).toBe(2036)
+    // Years apart. Anything that conflates the two is reading the wrong field.
+    expect(subscription.endAt?.getTime()).toBeGreaterThan(
+      (subscription.currentEnd?.getTime() ?? 0) + 365 * 24 * 60 * 60 * 1000,
+    )
   })
 })
 
