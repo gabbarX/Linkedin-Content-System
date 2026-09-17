@@ -95,12 +95,18 @@ export type RazorpaySubscription = {
    * The end of the subscription's term — see the schema comment. Exposed
    * verbatim and interpreted nowhere.
    *
-   * There is deliberately **no `cancelAtCycleEnd` here.** A fetched entity does
-   * not carry that fact: Razorpay leaves `status` at `active` for a scheduled
-   * cancellation and sets no flag this API surfaces. It is known in exactly two
-   * places — when LinkBud itself calls `cancelAtCycleEnd()`, and when a
-   * `subscription.cancelled` webhook arrives naming an entity that is still
-   * active. Both write it explicitly. Nothing infers it.
+   * There is deliberately **no `cancelAtCycleEnd` here**, and this is measured
+   * rather than assumed. `sub_TczLoX8CTzaF1b` was fetched on 2026-09-17 before
+   * and after a real cancel-at-cycle-end, and the two responses are
+   * indistinguishable: `status` `active` both times, `end_at` 2036-08-16 both
+   * times, `has_scheduled_changes` `false` both times, `ended_at` null both
+   * times. A fetched entity does not encode the fact anywhere.
+   *
+   * So it is not that an earlier version read the *wrong* field — there is no
+   * right field. The fact is known in exactly two places: when LinkBud itself
+   * calls `cancelAtCycleEnd()`, and when a `subscription.cancelled` webhook
+   * names an entity that is still active. Both write it explicitly. Nothing
+   * infers it, and this type gives nothing to infer it from.
    */
   endAt: Date | null
 }

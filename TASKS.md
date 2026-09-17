@@ -323,7 +323,54 @@ would have been the wrong move. Plan:
       actions — a server action is a public HTTP endpoint, and what a crafted
       POST would skip past is six model calls billed to us
 - [x] `/billing` — paywall, status, next charge date, cancel-at-cycle-end
-- [ ] Browser QA
+- [x] **Browser QA, 2026-09-17 — a real test-mode payment went through end to
+      end.** Signed out, `/billing` redirects to `/login`. An unentitled user is
+      turned away from `/dashboard`, `/calendar`, `/strategy` **and**
+      `/onboarding/strategy` — that last one checked in isolation with the step
+      set to `strategy`, because it is the page guarding six model calls and the
+      layout guard does not reach it. `/settings` stays reachable throughout,
+      which is what makes the lock escapable.
+      Checkout opened with the Test Mode ribbon and the correct terms: "a
+      payment of ₹1,499 will be charged now… every month until 21 Aug 2036" —
+      120 cycles, as configured. The modal took its accent from `--lb-accent`.
+      Razorpay refused `4111 1111 1111 1111` with "not eligible for recurring
+      payments" (a real product constraint, not our bug); the documented
+      recurring card `4718 6091 0820 4366` went through RBI tokenisation and the
+      Axis Bank OTP page. The confirm action landed the user on
+      `/onboarding/strategy`, `status` became `active` with a real period
+      (17 Sep → 16 Oct 2026), and `onboarding_step` advanced `paywall` →
+      `strategy`. Building the strategy then succeeded (version 3, four pillars,
+      week 1 briefed), proving the gate lets a paying user through.
+      Abandoning a checkout and returning was covered by accident and works: the
+      `created` row renders "Not started yet… Starting again is safe."
+      Webhook, replayed locally with a signed payload: valid → 200 and written,
+      tampered → 401, absent → 401, replayed → 200 with no damage, and an
+      **older** event → 200 having changed nothing, with the row's `status` and
+      `customer_id` untouched and the log saying "changed no rows". The ordering
+      guard holds.
+      Cancel → the dialog names the real date, status stays `active`, the page
+      flips to "Access ends 16 October 2026", and `/dashboard` still loads.
+      A `halted` subscription hard-locks a fully onboarded user to `/billing`
+      and leads with "Payment stopped" rather than the feature list.
+      Console clean, no horizontal overflow at 1440 or 375, Lighthouse
+      accessibility and best-practices both 100 (axe covers roughly a third of
+      WCAG, so that is necessary and not sufficient).
+- [x] **Fixed during QA: `end_at` is not a cancellation.** The client inferred
+      `cancelAtCycleEnd` from Razorpay's `end_at`, which is the end of the
+      ten-year *term* and present on every healthy subscription — so `/billing`
+      told a customer who had paid four minutes earlier that their access ended
+      next month, and hid the Cancel button. Fetching the same subscription
+      before and after a real cancellation proved the two responses are
+      identical (`status` `active`, `end_at` 2036-08-16,
+      `has_scheduled_changes` false in both), so there is no field to read: the
+      type no longer carries the property at all, and the flag is written only
+      where it is genuinely known.
+- [ ] **YOU: the one leg that cannot be tested from localhost** — Razorpay
+      cannot deliver a webhook to `127.0.0.1`, so delivery *from Razorpay's own
+      servers* is untested until this is deployed. The endpoint itself is
+      verified above against locally signed payloads.
+      `RAZORPAY_WEBHOOK_SECRET` currently holds a local placeholder; replace it
+      with the value from the dashboard webhook form when you create it.
 
 ## Milestone 5 — the writer
 
