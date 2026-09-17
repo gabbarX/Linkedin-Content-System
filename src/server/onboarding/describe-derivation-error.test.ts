@@ -28,6 +28,26 @@ describe('describeDerivationError', () => {
     expect(unknownModel).toBe(badJson)
   })
 
+  // Regression, Milestone 5 -- the same two defects the strategy describer
+  // carried, in a copy of the same code.
+  it('gives the same advice whichever provider answered', () => {
+    expect(describeDerivationError(new LlmError('Gemini returned 429: quota exceeded'))).toBe(
+      describeDerivationError(new LlmError('OpenRouter returned 429: rate limited')),
+    )
+    expect(describeDerivationError(new LlmError('Gemini returned 429: quota'))).toContain(
+      'rate-limited',
+    )
+  })
+
+  it('recognises the message activeProvider actually throws when no key is set', () => {
+    const message = describeDerivationError(
+      new LlmError(
+        'No LLM provider is configured, so no model call can be made. Set GEMINI_API_KEY or OPENROUTER_API_KEY. See docs/ACCOUNTS.md.',
+      ),
+    )
+    expect(message).toContain('not configured yet')
+  })
+
   it('falls back to a still-recoverable message for a non-LlmError throw', () => {
     // A transient database error (saving the derived profile, advancing the
     // step) or any other unexpected throw is not an LlmError at all, but

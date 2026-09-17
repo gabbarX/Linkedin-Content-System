@@ -49,6 +49,32 @@ describe('describeStrategyError', () => {
     expect(fromError).toMatch(/try again/i)
   })
 
+  // Regression, Milestone 5. This module used to match /OpenRouter returned
+  // 429/ and test for 'OPENROUTER_API_KEY is not set'. Once Gemini became the
+  // default provider the first never matched -- a rate-limited user was told
+  // the reply was unexpected, advice to do nothing for a problem that clears
+  // in a minute -- and the second was unreachable on every provider, because
+  // activeProvider() selects by key presence and throws a different message
+  // when nothing is set.
+  it('gives the same advice whichever provider answered', () => {
+    expect(describeStrategyError(new LlmError('Gemini returned 429: quota exceeded'))).toBe(
+      describeStrategyError(new LlmError('OpenRouter returned 429: rate limited')),
+    )
+    expect(describeStrategyError(new LlmError('Gemini returned 429: quota exceeded'))).toMatch(
+      /rate-limited/i,
+    )
+    expect(describeStrategyError(new LlmError('Gemini returned 503: unavailable'))).toMatch(/busy/i)
+  })
+
+  it('recognises the message activeProvider actually throws when no key is set', () => {
+    const message = describeStrategyError(
+      new LlmError(
+        'No LLM provider is configured, so no model call can be made. Set GEMINI_API_KEY or OPENROUTER_API_KEY. See docs/ACCOUNTS.md.',
+      ),
+    )
+    expect(message).toMatch(/not configured/i)
+  })
+
   it('never says the word "error" to the user', () => {
     for (const thrown of [new LlmError('OpenRouter returned 500: boom'), new Error('x'), 'y']) {
       expect(describeStrategyError(thrown)).not.toMatch(/\berror\b/i)
