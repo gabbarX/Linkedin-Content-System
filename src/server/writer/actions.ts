@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import type { PostActionResult } from '@/lib/post/action-result'
-import { POLISH_OUTCOMES, VARIANT_APPROACHES, type PolishOutcome } from '@/lib/post/vocabulary'
+import { countCharacters } from '@/lib/post/measure'
+import {
+  LINKEDIN_CHAR_LIMIT,
+  POLISH_OUTCOMES,
+  VARIANT_APPROACHES,
+  type PolishOutcome,
+} from '@/lib/post/vocabulary'
 import { routeForStep } from '@/lib/onboarding/steps'
 import { createServerClient } from '@/lib/supabase/server'
 import { requireEntitled } from '@/server/billing/entitlement'
@@ -90,6 +96,13 @@ function isPolishOutcome(value: unknown): value is PolishOutcome {
 }
 
 const INVALID_REQUEST = 'That request did not look right. Reload the page and try again.'
+
+/**
+ * A fault ceiling, not an editorial one. Sixteen times LinkedIn's 3,000
+ * characters: far beyond anything a person writes into a post, close enough to
+ * bound what a crafted request can store.
+ */
+const MAX_SAVED_CHARACTERS = LINKEDIN_CHAR_LIMIT * 16
 const NO_POST = 'That post no longer exists. Reload the page.'
 
 type Inputs = {
@@ -306,6 +319,14 @@ export async function chooseVariant(
  */
 export async function saveDraft(postId: unknown, text: unknown): Promise<PostActionResult> {
   if (!isRowId(postId) || typeof text !== 'string') {
+    return { ok: false, message: INVALID_REQUEST }
+  }
+  // Not a writing rule -- the product promise is that length never blocks a
+  // save, and this ceiling is sixteen times LinkedIn's own limit. It is here
+  // because this is a public HTTP endpoint and `typeof text === 'string'`
+  // would otherwise let a crafted POST store an unbounded value in a text
+  // column, repeatedly. A user cannot reach it by writing.
+  if (countCharacters(text) > MAX_SAVED_CHARACTERS) {
     return { ok: false, message: INVALID_REQUEST }
   }
 

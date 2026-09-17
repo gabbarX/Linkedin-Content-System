@@ -254,6 +254,14 @@ export async function replaceVariants(
   variants: NewVariant[],
 ): Promise<Post | null> {
   await getPrisma().$transaction(async (tx) => {
+    // The delete is scoped on both columns; the insert below cannot be, because
+    // an insert has no WHERE. Both callers happen to establish ownership first,
+    // but "the current callers are careful" is not an authorization model --
+    // a third caller would write variants into another user's post, and
+    // POST_INCLUDE would render them in that user's editor as their own.
+    const owned = await tx.posts.count({ where: { id: postId, user_id: userId } })
+    if (owned === 0) return
+
     await tx.post_variants.deleteMany({ where: { post_id: postId, user_id: userId } })
     await tx.post_variants.createMany({
       data: variants.map((variant) => ({
@@ -284,6 +292,10 @@ export async function selectVariant(
       status: 'draft',
       approved_at: null,
       polished_text: null,
+      // The previous draft's accept/discard verdict was about text that is
+      // now gone. Carrying it forward would attribute it to a variant the
+      // user never polished.
+      polish_outcome: null,
       borrowed_from_variants: [],
       borrowed_char_count: 0,
       edit_ratio: 0,
@@ -301,14 +313,19 @@ export async function selectVariant(
  * public HTTP endpoint. Borrowing is measured against the variants the user did
  * **not** choose — keeping the chosen variant's own words is not borrowing.
  */
-export async function saveFinalText(
-  userId: string,
-  postId: string,
-  text: string,
-): Promise<Post | null> {
-  const existing = await getPostById(userId, postId)
-  if (!existing) return null
-
+/**
+ * Everything that must be true after the post's text changes, whoever changed
+ * it.
+ *
+ * **There is one of these because there must be exactly one.** The first
+ * version of this module applied the approval revert in `saveFinalText` and
+ * not in `resolvePolish`, so accepting a polish left a post reading
+ * `approved` while its text was a rewrite the user had never approved — the
+ * precise state Milestone 6 is told it can trust. That is the half-applied
+ * boundary CLAUDE.md warns about, reproduced one code path over. Both callers
+ * now go through here, so a third one cannot get it wrong either.
+ */
+function textUpdate(existing: Post, text: string) {
   const chosen = existing.variants.find(
     (variant) => variant.variantIndex === existing.variantIndex,
   )
@@ -320,20 +337,37 @@ export async function saveFinalText(
   // variants come from one brief and share a great deal of phrasing, so without
   // it the signal measures draft overlap rather than what the user copied.
   const borrowed = borrowedSpans(text, others, { chosen: chosen?.content ?? null })
-  const ratio = chosen ? editRatio(chosen.content, text) : null
+
+  return {
+    final_text: text,
+    borrowed_from_variants: borrowed.fromVariants,
+    borrowed_char_count: borrowed.charCount,
+    edit_ratio: chosen ? editRatio(chosen.content, text) : null,
+    // Ruling R-M5-6: changing the text un-approves it. `approved` describes
+    // the exact text that was reviewed, or it describes nothing.
+    status: 'draft' as const,
+    approved_at: null,
+    // Any pending polish was computed against the text this replaces. Leaving
+    // it would offer the user a "polished version" of writing that no longer
+    // exists, and accepting it would silently destroy the edit.
+    polished_text: null,
+  }
+}
+
+export async function saveFinalText(
+  userId: string,
+  postId: string,
+  text: string,
+): Promise<Post | null> {
+  const existing = await getPostById(userId, postId)
+  if (!existing) return null
 
   const updated = await getPrisma().posts.updateMany({
     where: { id: postId, user_id: userId },
-    data: {
-      final_text: text,
-      borrowed_from_variants: borrowed.fromVariants,
-      borrowed_char_count: borrowed.charCount,
-      edit_ratio: ratio,
-      // Ruling R-M5-6: editing the text un-approves it. `approved` describes
-      // the exact text that was reviewed, or it describes nothing.
-      status: 'draft',
-      approved_at: null,
-    },
+    // `polish_outcome` is deliberately not cleared: it records that the user
+    // once accepted or rejected a polish, which stays true and is Milestone
+    // 9's signal. Only the *pending* polish is stale.
+    data: textUpdate(existing, text),
   })
   if (updated.count === 0) return null
   return getPostById(userId, postId)
@@ -367,18 +401,23 @@ export async function resolvePolish(
   const existing = await getPostById(userId, postId)
   if (!existing) return null
 
-  const promote =
-    outcome === 'accepted' && existing.polishedText !== null
-      ? { final_text: existing.polishedText }
-      : {}
+  // Nothing pending means there is no decision to record. Writing an outcome
+  // anyway would let a crafted POST fabricate a Milestone 9 preference signal
+  // for a polish that never happened.
+  const pending = existing.polishedText
+  if (pending === null) return null
+
+  const data =
+    outcome === 'accepted'
+      ? // Accepting changes the text, so it goes through the same path a
+        // manual edit does: signals recomputed against the promoted text, and
+        // approval revoked because nobody has reviewed this wording yet.
+        { ...textUpdate(existing, pending), polish_outcome: outcome }
+      : { polished_text: null, polish_outcome: outcome }
 
   const updated = await getPrisma().posts.updateMany({
     where: { id: postId, user_id: userId },
-    data: {
-      ...promote,
-      polished_text: null,
-      polish_outcome: outcome,
-    },
+    data,
   })
   if (updated.count === 0) return null
   return getPostById(userId, postId)

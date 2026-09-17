@@ -164,7 +164,32 @@ describe('every query is scoped by userId', () => {
     })
   })
 
+  // An insert has no WHERE, so the ownership claim has to be earned before it.
+  // Both current callers happen to check first, but "the callers are careful"
+  // is not an authorization model -- a third one would write variants into
+  // another user's post, and they would render in that user's editor.
+  it('replaceVariants writes nothing when the post is not the user’s', async () => {
+    posts.count.mockResolvedValue(0)
+    posts.findFirst.mockResolvedValue(null)
+    await replaceVariants(OTHER_USER, POST, [
+      { variantIndex: 0, approach: 'hook-forward', content: 'a' },
+    ])
+    expect(post_variants.createMany).not.toHaveBeenCalled()
+    expect(posts.count.mock.calls[0]?.[0].where).toMatchObject({
+      id: POST,
+      user_id: OTHER_USER,
+    })
+  })
+
+  it('selectVariant clears the previous draft’s polish verdict', async () => {
+    posts.updateMany.mockResolvedValue({ count: 1 })
+    posts.findFirst.mockResolvedValue(row())
+    await selectVariant(USER, POST, 1, 'chosen text')
+    expect(posts.updateMany.mock.calls[0]?.[0].data.polish_outcome).toBeNull()
+  })
+
   it('replaceVariants scopes the delete and the insert on user_id', async () => {
+    posts.count.mockResolvedValue(1)
     posts.findFirst.mockResolvedValue(row())
     post_variants.deleteMany.mockResolvedValue({ count: 3 })
     post_variants.createMany.mockResolvedValue({ count: 3 })
@@ -252,6 +277,18 @@ describe('saveFinalText', () => {
     expect(data.approved_at).toBeNull()
   })
 
+  // Two tabs: one polishes, the other saves an edit. Without this the stale
+  // polish survives, the editor hides the textarea behind the compare pane,
+  // and accepting overwrites the edit that was just saved. There is no undo.
+  it('clears a pending polish, because it was computed against the old text', async () => {
+    posts.findFirst.mockResolvedValue(
+      row({ variant_index: 0, polished_text: 'a polish of text that no longer exists' }),
+    )
+    posts.updateMany.mockResolvedValue({ count: 1 })
+    await saveFinalText(USER, POST, 'newly edited text')
+    expect(posts.updateMany.mock.calls[0]?.[0].data.polished_text).toBeNull()
+  })
+
   it('leaves a draft as a draft', async () => {
     posts.findFirst.mockResolvedValue(row({ status: 'draft', variant_index: 0 }))
     posts.updateMany.mockResolvedValue({ count: 1 })
@@ -268,6 +305,69 @@ describe('saveFinalText', () => {
 })
 
 describe('polish', () => {
+  // The defect this suite missed on the first pass. saveFinalText reverted an
+  // approved post to draft; resolvePolish wrote final_text and left the status
+  // alone. Mark ready -> Polish -> Use the polished version therefore produced
+  // a post reading `approved` whose text nobody had reviewed -- the one state
+  // Milestone 6 is told it can trust. The boundary was applied to one
+  // text-writing path and not the other.
+  it('accepting a polish un-approves the post, like any other text change', async () => {
+    posts.findFirst.mockResolvedValue(
+      row({
+        variant_index: 0,
+        status: 'approved',
+        approved_at: new Date(),
+        final_text: 'the reviewed text',
+        polished_text: 'a rewrite nobody has read',
+        post_variants: [
+          { variant_index: 0, approach: 'hook-forward', content: 'the reviewed text' },
+        ],
+      }),
+    )
+    posts.updateMany.mockResolvedValue({ count: 1 })
+
+    await resolvePolish(USER, POST, 'accepted')
+
+    const data = posts.updateMany.mock.calls[0]?.[0].data
+    expect(data.final_text).toBe('a rewrite nobody has read')
+    expect(data.status).toBe('draft')
+    expect(data.approved_at).toBeNull()
+  })
+
+  it('accepting a polish recomputes the preference signals against the new text', async () => {
+    const borrowed = 'z'.repeat(60)
+    posts.findFirst.mockResolvedValue(
+      row({
+        variant_index: 0,
+        final_text: 'mine',
+        polished_text: `polished ${borrowed} tail`,
+        post_variants: [
+          { variant_index: 0, approach: 'hook-forward', content: 'chosen original' },
+          { variant_index: 1, approach: 'story-forward', content: `lead ${borrowed} end` },
+          { variant_index: 2, approach: 'proof-forward', content: 'unrelated' },
+        ],
+      }),
+    )
+    posts.updateMany.mockResolvedValue({ count: 1 })
+
+    await resolvePolish(USER, POST, 'accepted')
+
+    const data = posts.updateMany.mock.calls[0]?.[0].data
+    // Stale signals would describe the pre-polish text, and Milestone 9 would
+    // be told this person barely edits writing they never wrote.
+    expect(data.borrowed_from_variants).toEqual([1])
+    expect(data.edit_ratio).toBeGreaterThan(0)
+  })
+
+  it('records no outcome when there is no pending polish to resolve', async () => {
+    posts.findFirst.mockResolvedValue(row({ polished_text: null }))
+    const result = await resolvePolish(USER, POST, 'accepted')
+    expect(result).toBeNull()
+    // Otherwise a crafted POST fabricates a Milestone 9 preference signal for
+    // a polish that never happened.
+    expect(posts.updateMany).not.toHaveBeenCalled()
+  })
+
   it('savePolish stores the pending text without touching final_text', async () => {
     posts.updateMany.mockResolvedValue({ count: 1 })
     posts.findFirst.mockResolvedValue(row({ polished_text: 'polished' }))

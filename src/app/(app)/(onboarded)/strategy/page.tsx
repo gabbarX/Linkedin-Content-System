@@ -180,10 +180,10 @@ export default async function StrategyPage() {
           See all twelve weeks
         </Button>
         <RegenerateStrategy
-                version={strategy.version}
-                draftCount={posts.length}
-                buildStrategy={buildStrategy}
-              />
+                  version={strategy.version}
+                  draftCount={posts.length}
+                  buildStrategy={buildStrategy}
+                />
       </section>
     </>
   )

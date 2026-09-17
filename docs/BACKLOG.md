@@ -115,6 +115,25 @@ snapshots `cadence_per_week` (Ruling R-M3-9). Changing the profile's cadence
 later leaves the existing slots as they were until a regenerate.
 **Trigger:** the settings page that lets a user change cadence.
 
+## Writer
+
+**`post_variants` has no database-level guarantee that it belongs to the same
+user as its post.** `post_id` references `posts (id)` and `user_id` is
+denormalised beside it, but nothing requires the two to agree — Postgres will
+hold a variant whose `user_id` differs from its post's. `replaceVariants` now
+checks ownership inside its transaction, so there is no live hole, but the
+guarantee is code rather than schema. The same is true of `posts.slot_id`,
+which references `slots (id)` with nothing requiring the slot to be the same
+user's.
+
+The fix is a composite key: `unique (id, user_id)` on `posts`, then
+`foreign key (post_id, user_id) references posts (id, user_id) on delete
+cascade`. That is a schema change, which is a stop-and-ask, and it was found
+during Milestone 5's review rather than planned for.
+**Trigger:** the next migration that touches either table — or the first time
+a third caller of `replaceVariants` appears, since the in-code check is the
+only thing standing there.
+
 ## LLM (continued)
 
 **OpenRouter's free tier is 50 requests per day, account-wide.** Hit on

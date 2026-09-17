@@ -7,6 +7,7 @@ import type { VoiceProfile } from '@/server/db/repositories/voice-profiles'
 import { LlmError } from '@/server/llm/client'
 import { createFallbackSession, type FallbackSession } from '@/server/llm/complete-with-fallback'
 import { describeBusiness, describeTaboos } from '@/server/strategy/prompt-context'
+import { describeVoiceForWriting } from './prompt-context'
 
 /**
  * `buildBrief(slot, ctx) -> Brief` from spec §4.4: turn a slot into a tight
@@ -72,6 +73,7 @@ function buildPrompt(
   strategy: Strategy,
   slot: Slot,
   business: BusinessProfile,
+  voice: VoiceProfile,
   pillarName: string,
 ): string {
   const phase = phaseForWeek(slot.weekIndex)
@@ -82,6 +84,9 @@ function buildPrompt(
     describeBusiness(business),
     '',
     describeTaboos(business),
+    '',
+    'THEIR VOICE',
+    describeVoiceForWriting(voice),
     '',
     'THEIR POSITIONING',
     strategy.positioning,
@@ -126,12 +131,18 @@ export async function buildBrief({
   strategy,
   slot,
   business,
+  voice,
   pillarName,
   llm = createFallbackSession(),
 }: BuildBriefInput): Promise<Brief> {
   const result = await llm.complete({
     system: SYSTEM,
-    user: buildPrompt(strategy, slot, business, pillarName),
+    // The system prompt tells the model it is being given a voice profile, so
+    // it must actually arrive. An earlier version declared `voice` on the
+    // input, accepted it from the caller, and then never rendered it -- a
+    // prompt describing input it did not receive, which degrades the output in
+    // a way no review of the code would show.
+    user: buildPrompt(strategy, slot, business, voice, pillarName),
     schema: briefSchema,
     schemaName: 'post_brief',
   })
