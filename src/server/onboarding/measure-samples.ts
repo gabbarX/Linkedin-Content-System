@@ -1,4 +1,5 @@
 import 'server-only'
+import { countCharacters } from '@/lib/post/measure'
 import type { Frequency, LineBreakStyle } from '@/server/db/repositories/voice-profiles'
 
 /**
@@ -80,8 +81,11 @@ export function measureSample(text: string): SampleCounts {
   return {
     wordCount: countWords(text),
     // Code points, not text.length (UTF-16 units) -- same reasoning as
-    // countEmoji: a surrogate pair must count once.
-    charCount: Array.from(text).length,
+    // countEmoji: a surrogate pair must count once. Shared with the writer's
+    // editor rather than reimplemented: the editor counts the same characters
+    // for the same reason, and two implementations would disagree on every
+    // emoji (Ruling R-M5-13).
+    charCount: countCharacters(text),
     lineCount: text.split('\n').length,
     emojiCount: countEmoji(text),
     hashtagCount: countHashtags(text),
