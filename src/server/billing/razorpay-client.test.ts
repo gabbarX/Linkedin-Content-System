@@ -18,13 +18,14 @@ const SUBSCRIPTION_JSON = {
 }
 
 /**
- * The parameters are declared even though the body ignores them: without them
- * `mock.calls` is typed as an empty tuple and every `calls[0]?.[1]` below is a
- * type error rather than the assertion it reads as.
+ * `vi.fn<typeof fetch>` rather than a bare `vi.fn`: it types `mock.calls` as
+ * fetch's own parameters, so `calls[0]?.[1]?.method` below is the assertion it
+ * reads as. An inferred zero-argument mock types `calls` as an empty tuple and
+ * every one of those reads becomes a type error.
  */
 function fakeFetch(body: unknown, init: { status?: number } = {}) {
-  return vi.fn(
-    async (_input: RequestInfo | URL, _init?: RequestInit) =>
+  return vi.fn<typeof fetch>(
+    async () =>
       new Response(JSON.stringify(body), {
         status: init.status ?? 200,
         headers: { 'content-type': 'application/json' },
@@ -96,7 +97,9 @@ describe('createSubscription', () => {
   })
 
   it('treats an absent customer_id key the same as an explicit null', async () => {
-    const { customer_id: _dropped, ...withoutCustomer } = SUBSCRIPTION_JSON
+    const withoutCustomer = Object.fromEntries(
+      Object.entries(SUBSCRIPTION_JSON).filter(([key]) => key !== 'customer_id'),
+    )
     const subscription = await client(fakeFetch(withoutCustomer)).createSubscription({
       planId: 'plan_1',
       notes: {},
@@ -138,9 +141,8 @@ describe('error handling', () => {
   })
 
   it('raises RazorpayError rather than a parse error when the body is not JSON', async () => {
-    const fetchImpl = vi.fn(
-      async (_input: RequestInfo | URL, _init?: RequestInit) =>
-        new Response('<html>gateway timeout</html>', { status: 504 }),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response('<html>gateway timeout</html>', { status: 504 }),
     )
     const thrown = await client(fetchImpl)
       .fetchSubscription('sub_1')
@@ -164,7 +166,7 @@ describe('error handling', () => {
   })
 
   it('raises RazorpayError when fetch itself rejects', async () => {
-    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
       throw new TypeError('network down')
     })
     const thrown = await client(fetchImpl)
