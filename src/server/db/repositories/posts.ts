@@ -316,7 +316,10 @@ export async function saveFinalText(
     (variant) => variant.variantIndex !== existing.variantIndex,
   )
 
-  const borrowed = borrowedSpans(text, others)
+  // The chosen variant is passed so its own words are excluded: all three
+  // variants come from one brief and share a great deal of phrasing, so without
+  // it the signal measures draft overlap rather than what the user copied.
+  const borrowed = borrowedSpans(text, others, { chosen: chosen?.content ?? null })
   const ratio = chosen ? editRatio(chosen.content, text) : null
 
   const updated = await getPrisma().posts.updateMany({

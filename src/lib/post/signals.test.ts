@@ -75,6 +75,42 @@ describe('borrowedSpans', () => {
     expect(result.fromVariants).toEqual([0, 2])
   })
 
+  // Found in live browser QA, and the reason the `chosen` option exists.
+  //
+  // All three variants are written from one brief, so they independently
+  // produce near-identical sentences -- the brief's call to action came back
+  // almost verbatim in all three. A real run where the user pasted ONE line
+  // from another draft measured 575 of 1,004 characters as borrowed, because
+  // the chosen draft's own words also appeared in the other two. Milestone 9
+  // would have concluded this person blends heavily when they barely blend.
+  it('does not count the chosen draft’s own words as borrowed', () => {
+    const shared = 'Open your inbox and count what is waiting on your personal sign-off today.'
+    const chosen = `An opening line.
+
+${shared}`
+    const result = borrowedSpans(chosen, [{ variantIndex: 1, content: `Different opening.
+
+${shared}` }], {
+      chosen,
+    })
+    expect(result.fromVariants).toEqual([])
+    expect(result.charCount).toBe(0)
+  })
+
+  it('still reports a run genuinely taken from another draft', () => {
+    const chosen = 'My own opening line that is quite long indeed and goes on.'
+    const lifted = 'A founder sat across from me last month and said the quiet part.'
+    const result = borrowedSpans(`${lifted}
+
+${chosen}`, [
+      { variantIndex: 1, content: `${lifted}
+
+Something else entirely here.` },
+    ], { chosen })
+    expect(result.fromVariants).toEqual([1])
+    expect(result.charCount).toBeGreaterThanOrEqual(BORROWED_MIN_RUN)
+  })
+
   it('handles an empty final text and an empty variant list', () => {
     expect(borrowedSpans('', [{ variantIndex: 0, content: 'x' }]).charCount).toBe(0)
     expect(borrowedSpans('some text', []).fromVariants).toEqual([])

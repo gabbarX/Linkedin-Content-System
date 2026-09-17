@@ -41,20 +41,45 @@ export type BorrowedSpans = {
   charCount: number
 }
 
+export type BorrowedSpansOptions = {
+  /**
+   * The chosen variant's own text. **Runs that also appear here are not
+   * borrowing**, and leaving this out makes the measurement close to
+   * meaningless.
+   *
+   * All three variants are written from one brief, so they independently
+   * produce near-identical sentences — the brief's call to action comes back
+   * almost verbatim in all three. Without this exclusion, a user who pasted
+   * one line from another draft was measured at 57% borrowed in a real run,
+   * because the chosen draft's own words happened to appear in the others too.
+   * Milestone 9 would have learned that this person blends heavily when they
+   * barely blend at all.
+   */
+  chosen?: string | null
+  minRun?: number
+}
+
 /**
- * Which of the unchosen variants the user copied lines out of.
+ * Which of the unchosen variants the user actually copied lines out of.
  *
  * Spec §4.4 calls blending "a human editing action, not an AI merge step", and
  * says the cross-copied text is recorded as a preference signal. This is that
- * measurement: for each variant, find the runs of the final text that also
- * appear in it, and report which variants contributed and how much of the
- * final text they cover.
+ * measurement: runs of the final text that appear in a variant the user did
+ * **not** choose, and do **not** appear in the one they did. Keeping your own
+ * draft's words is not borrowing, however many other drafts happen to contain
+ * the same sentence.
  */
 export function borrowedSpans(
   finalText: string,
   others: readonly VariantText[],
-  minRun: number = BORROWED_MIN_RUN,
+  options: BorrowedSpansOptions = {},
 ): BorrowedSpans {
+  const minRun = options.minRun ?? BORROWED_MIN_RUN
+  const chosen =
+    options.chosen === null || options.chosen === undefined
+      ? null
+      : Array.from(options.chosen).slice(0, MAX_COMPARE).join('')
+
   const final = Array.from(finalText).slice(0, MAX_COMPARE)
   if (final.length < minRun || others.length === 0) {
     return { fromVariants: [], charCount: 0 }
@@ -72,17 +97,25 @@ export function borrowedSpans(
     let index = 0
     while (index + minRun <= final.length) {
       const window = final.slice(index, index + minRun).join('')
+      // Present in the chosen draft too, so the user kept their own words
+      // rather than taking someone else's. Not borrowing.
+      if (chosen !== null && chosen.includes(window)) {
+        index += 1
+        continue
+      }
       if (!candidate.includes(window)) {
         index += 1
         continue
       }
 
-      // Extend the match as far as it keeps appearing in the variant, so a
-      // wholly copied paragraph is counted at its real length.
+      // Extend the match as far as it keeps appearing in the variant AND stays
+      // absent from the chosen one, so a wholly copied paragraph is counted at
+      // its real length without bleeding into shared boilerplate either side.
       let length = minRun
       while (
         index + length < final.length &&
-        candidate.includes(final.slice(index, index + length + 1).join(''))
+        candidate.includes(final.slice(index, index + length + 1).join('')) &&
+        (chosen === null || !chosen.includes(final.slice(index, index + length + 1).join('')))
       ) {
         length += 1
       }
