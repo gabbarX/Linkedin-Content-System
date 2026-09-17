@@ -324,8 +324,8 @@ export function PostEditor({
 
                 {isReady && !hasUnsavedEdits && (
                   <p className="mt-3 text-sm text-text-muted" role="status">
-                    Marked ready. Publishing to LinkedIn arrives with the publisher — every post
-                    goes out on a tap from you, never on a timer.
+                    Marked ready. Nothing goes out without you tapping publish — LinkBud never
+                    posts on a timer.
                   </p>
                 )}
               </>

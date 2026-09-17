@@ -57,6 +57,29 @@ describe('dashboardCopyForStep', () => {
     }
   })
 
+  // The version above only ever saw dashboardCopyForStep's output, so the one
+  // string that actually broke the rule -- "drafting and publishing arrive in
+  // later releases", which lived inline in dashboard/page.tsx -- passed it for
+  // months. This one scans every string this module exports, so copy added
+  // later is covered by construction rather than by someone remembering to
+  // extend a test.
+  it('holds every exported line to the same rule', async () => {
+    const copyModule = await import('./dashboard-copy')
+    // Collected with a loop rather than a filtering type predicate: the module's
+    // exports are string *literal* types, and `value is string` is not
+    // assignable to that union. A cast would silence it; narrowing earns it.
+    const strings: string[] = []
+    for (const value of Object.values(copyModule)) {
+      if (typeof value === 'string') strings.push(value)
+    }
+    expect(strings.length).toBeGreaterThan(0)
+    for (const line of strings) {
+      expect(line).not.toMatch(
+        /milestone|not shipped|later release|coming soon|arrives? (in|with)|future release/i,
+      )
+    }
+  })
+
   // Through Milestone 2 this read "Your radar starts once your strategy
   // exists" -- false the moment one does. Whatever it says must be true
   // both before and after a strategy exists.

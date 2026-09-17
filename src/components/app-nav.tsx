@@ -4,6 +4,7 @@ const links = [
   { href: '/dashboard', label: 'Today' },
   { href: '/calendar', label: 'Calendar' },
   { href: '/strategy', label: 'Strategy' },
+  { href: '/posts', label: 'Posts' },
   { href: '/settings', label: 'Settings' },
 ]
 

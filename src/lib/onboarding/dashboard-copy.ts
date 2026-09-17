@@ -54,6 +54,22 @@ export const RADAR_NOT_YET =
   "The trend radar isn't switched on yet. When it is, each day's items from your niche will appear here, one tap from a draft."
 const NO_PUBLISHED_POSTS = 'No published posts yet.'
 
+/**
+ * The first band's line when it is showing a real slot.
+ *
+ * These live here rather than inline in `dashboard/page.tsx` because the rule
+ * that no copy may name a milestone or apologise for an unbuilt feature is
+ * enforced by a test over this module, and the string that used to sit in the
+ * page -- "drafting and publishing arrive in later releases" -- was exactly
+ * the thing that rule forbids while sitting outside its reach. Moving it here
+ * puts it under the test rather than fixing one string and leaving the next
+ * person the same hole.
+ */
+export const NEXT_SLOT_UNWRITTEN =
+  'Nothing written for this one yet. Three drafts take about a minute.'
+export const NEXT_SLOT_DRAFTED = 'You have a draft going for this one.'
+export const NEXT_SLOT_READY = 'This one is marked ready. You publish it yourself when it is time.'
+
 export function dashboardCopyForStep(step: OnboardingStep): DashboardBandCopy {
   switch (step) {
     case 'interview':
