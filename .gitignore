@@ -48,3 +48,6 @@ next-env.d.ts
 .claude/skills/
 # Local env backups
 .env.backup-*
+
+# Throwaway QA scripts (browser-QA sessions); never part of the project.
+*.tmp.mjs

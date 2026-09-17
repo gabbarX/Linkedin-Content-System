@@ -8,31 +8,41 @@ import {
   routeForStep,
 } from './steps'
 
-/** The steps that have an onboarding page today. Milestone 4 adds `paywall`. */
-const STEPS_WITH_A_PAGE = ['interview', 'samples', 'voice', 'strategy'] as const
+/**
+ * Every step except `done` now has a page. Milestone 4 built `/billing` for
+ * `paywall`, which retired Ruling R3's temporary exception -- so this list is
+ * no longer a subset of ONBOARDING_STEPS but all of it bar the last.
+ */
+const STEPS_WITH_A_PAGE = ['interview', 'samples', 'voice', 'paywall', 'strategy'] as const
 
 describe('routeForStep', () => {
   it('routes each step with a page to that page', () => {
     expect(routeForStep('interview')).toBe('/onboarding/interview')
     expect(routeForStep('samples')).toBe('/onboarding/samples')
     expect(routeForStep('voice')).toBe('/onboarding/voice')
+    expect(routeForStep('paywall')).toBe('/billing')
     expect(routeForStep('strategy')).toBe('/onboarding/strategy')
     expect(routeForStep('done')).toBe('/dashboard')
   })
 
-  // Ruling R3, narrowed by Milestone 3 (R-M3-5): the invariant is absolute
-  // for every step that has a page. A user who has not built a strategy has
-  // nothing true to see on the dashboard, so `strategy` joined this list.
+  // Ruling R3 is retired (Milestone 4). The invariant is now unconditional:
+  // there is no step short of `done` that routes to the dashboard, because
+  // there is no step short of `done` without a page of its own.
   it('never routes a user who has not finished a step with a page to the dashboard', () => {
     for (const step of STEPS_WITH_A_PAGE) {
       expect(routeForStep(step)).not.toBe('/dashboard')
     }
   })
 
-  // Documents the one remaining deliberate exception, so it reads as a
-  // decision and not an oversight if someone tightens the test above later.
-  it('routes paywall to /dashboard until Milestone 4 builds its page', () => {
-    expect(routeForStep('paywall')).toBe('/dashboard')
+  // The exception this replaces -- `paywall` falling through to /dashboard --
+  // existed only because Milestone 4 had not built a page. It has. Nothing
+  // short of `done` may route to the dashboard now, and this is the test that
+  // stops the fallback quietly coming back.
+  it('leaves no step short of done falling through to the dashboard', () => {
+    for (const step of ONBOARDING_STEPS) {
+      if (step === 'done') continue
+      expect(routeForStep(step)).not.toBe('/dashboard')
+    }
   })
 
   it('covers every declared onboarding step', () => {
@@ -46,9 +56,12 @@ describe('nextStep', () => {
   it('advances strictly forward', () => {
     expect(nextStep('interview')).toBe('samples')
     expect(nextStep('samples')).toBe('voice')
-    expect(nextStep('voice')).toBe('strategy')
-    expect(nextStep('strategy')).toBe('paywall')
-    expect(nextStep('paywall')).toBe('done')
+    // Spec 1.2, amended 2026-09-17: the card comes before the strategy, so
+    // the voice step now lands on the paywall and a paid user goes on to
+    // build their plan.
+    expect(nextStep('voice')).toBe('paywall')
+    expect(nextStep('paywall')).toBe('strategy')
+    expect(nextStep('strategy')).toBe('done')
   })
 
   it('stays at done rather than running off the end', () => {
@@ -69,15 +82,16 @@ describe('onboardingRouteFor', () => {
     expect(onboardingRouteFor('interview')).toBe('/onboarding/interview')
     expect(onboardingRouteFor('samples')).toBe('/onboarding/samples')
     expect(onboardingRouteFor('voice')).toBe('/onboarding/voice')
+    expect(onboardingRouteFor('paywall')).toBe('/billing')
     expect(onboardingRouteFor('strategy')).toBe('/onboarding/strategy')
   })
 
-  // Ruling R8: paywall must be null, not routeForStep's '/dashboard'
-  // fallback — (app)/(onboarded)/layout.tsx redirects only when this returns
-  // non-null, so a null here is what stops it from redirecting a paywall
-  // user away from the one route (the dashboard) they're actually allowed on.
-  it('is null for paywall and done — nothing to force the user onto', () => {
-    expect(onboardingRouteFor('paywall')).toBeNull()
+  // `done` is the only null now. Ruling R8 still holds and is now carried
+  // entirely by route-group structure rather than by this function returning
+  // null: /billing and /onboarding/** are siblings of the (onboarded) group,
+  // so a request to either never renders through the guard that calls this,
+  // and a redirect loop is impossible rather than avoided.
+  it('is null only for done — onboarding is over, there is nothing to force', () => {
     expect(onboardingRouteFor('done')).toBeNull()
   })
 
@@ -86,10 +100,9 @@ describe('onboardingRouteFor', () => {
   // something to redirect to, so the guard fires. This is what makes "a user
   // who has not finished onboarding cannot reach the dashboard" true in the
   // running app, not just in routeForStep's output.
-  it('is truthy for every step short of done except paywall', () => {
-    const stepsWithNoPageYet = new Set(['paywall', 'done'])
+  it('is truthy for every step short of done', () => {
     for (const step of ONBOARDING_STEPS) {
-      if (stepsWithNoPageYet.has(step)) continue
+      if (step === 'done') continue
       expect(onboardingRouteFor(step)).toBeTruthy()
     }
   })
@@ -128,6 +141,10 @@ describe('isPastStep', () => {
     expect(isPastStep('interview', 'samples')).toBe(false)
     expect(isPastStep('interview', 'voice')).toBe(false)
     expect(isPastStep('voice', 'strategy')).toBe(false)
+    // The reorder's consequence: a user at the paywall has NOT passed the
+    // strategy step, they have not reached it. Before Milestone 4 this was
+    // true, and /onboarding/strategy uses it to decide re-entry.
+    expect(isPastStep('paywall', 'strategy')).toBe(false)
   })
 
   // The exact reentry bug this helper exists to fix: a user who finished
@@ -137,10 +154,24 @@ describe('isPastStep', () => {
     expect(isPastStep('voice', 'samples')).toBe(true)
   })
 
-  it('is true once onboarding has moved on to strategy, paywall or done', () => {
-    expect(isPastStep('strategy', 'voice')).toBe(true)
+  it('is true once onboarding has moved on to paywall, strategy or done', () => {
     expect(isPastStep('paywall', 'voice')).toBe(true)
-    expect(isPastStep('paywall', 'strategy')).toBe(true)
+    expect(isPastStep('strategy', 'voice')).toBe(true)
+    expect(isPastStep('strategy', 'paywall')).toBe(true)
     expect(isPastStep('done', 'voice')).toBe(true)
+    expect(isPastStep('done', 'strategy')).toBe(true)
+  })
+
+  it('orders the steps interview, samples, voice, paywall, strategy, done', () => {
+    // The order is the whole state machine, and Milestone 4 changed it. Pinned
+    // literally so a reorder has to be a deliberate edit to this line.
+    expect([...ONBOARDING_STEPS]).toEqual([
+      'interview',
+      'samples',
+      'voice',
+      'paywall',
+      'strategy',
+      'done',
+    ])
   })
 })

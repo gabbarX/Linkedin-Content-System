@@ -17,25 +17,35 @@ export const ONBOARDING_STEPS = [
   'interview',
   'samples',
   'voice',
-  'strategy',
   'paywall',
+  'strategy',
   'done',
 ] as const
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
 
 /**
- * The onboarding page for a step, for the steps that have one. The single
- * source both `routeForStep` and `onboardingRouteFor` read from — see their
- * doc comments for why two functions exist over one map. Milestone 3 added
- * `strategy` here (Ruling R-M3-5); Milestone 4 adds `paywall` the same way,
- * and both functions (and the wizard, and the guard) pick it up together.
- * There is nowhere else a page path is written down.
+ * The onboarding page for a step. The single source both `routeForStep` and
+ * `onboardingRouteFor` read from — see their doc comments for why two
+ * functions exist over one map. There is nowhere else a page path is written
+ * down, which is why adding `paywall` here was the whole of Milestone 4's
+ * change to the wizard: both functions, the guard and every call site picked
+ * it up together.
+ *
+ * Every step except `done` now has a page. The type stays `Partial` because
+ * `done` genuinely has none — onboarding is over — and that absence is exactly
+ * what `onboardingRouteFor` returns null for.
+ *
+ * `paywall` points at `/billing` rather than an `/onboarding/paywall` of its
+ * own. The two would render the same three states from the same row, and one
+ * screen means one set of copy to keep true: the wizard's first payment and a
+ * lapsed customer's renewal are the same act.
  */
 const PAGE_ROUTE_BY_STEP: Partial<Record<OnboardingStep, string>> = {
   interview: '/onboarding/interview',
   samples: '/onboarding/samples',
   voice: '/onboarding/voice',
+  paywall: '/billing',
   strategy: '/onboarding/strategy',
 }
 
@@ -50,33 +60,30 @@ const PAGE_ROUTE_BY_STEP: Partial<Record<OnboardingStep, string>> = {
  *   wizard uses it once a step's own work is done, to send the user
  *   onward (including the final step, which lands on `/dashboard`).
  * - `onboardingRouteFor` answers the narrower "is there an onboarding page
- *   to force this user onto right now" — `null` for a step with no page in
- *   this milestone. It exists because Ruling R8 (see
+ *   to force this user onto right now" — `null` once onboarding is over. It
+ *   exists because Ruling R8 (see
  *   .superpowers/sdd/2026-09-16-linkbud-onboarding/progress.md) moved the
  *   dashboard's onboarding guard into its own route group
- *   (`(app)/(onboarded)/layout.tsx`), which must never redirect a `strategy`
- *   or `paywall` user away from the dashboard — there is nowhere else to
- *   send them. `routeForStep` cannot answer that on its own because it
- *   always returns *something* (falling back to `/dashboard` for exactly
- *   those two steps, per R3), which is right for the wizard's "send them
- *   onward" question and wrong for the guard's "should I redirect at all"
- *   question.
+ *   (`(app)/(onboarded)/layout.tsx`). `routeForStep` cannot answer that
+ *   question on its own because it always returns *something*, falling back
+ *   to `/dashboard` for `done` — right for the wizard's "send them onward"
+ *   question and wrong for the guard's "should I redirect at all" question.
  *
  * Both are defined in terms of `PAGE_ROUTE_BY_STEP` rather than each
- * hardcoding the three onboarding paths in its own switch: a step's page
- * path is written down exactly once, so the wizard and the guard cannot
- * drift apart by one of two copies being updated and the other forgotten.
+ * hardcoding the onboarding paths in its own switch: a step's page path is
+ * written down exactly once, so the wizard and the guard cannot drift apart by
+ * one of two copies being updated and the other forgotten.
  *
- * Ruling R3, narrowed by Milestone 3: `routeForStep('paywall')` is
- * `/dashboard` because Milestone 4 owns that step and has not built its page
- * yet. Routing a user at that step to a route that 404s is worse than routing
- * them to the dashboard they will eventually reach anyway. This is a
- * deliberate, temporary exception — not evidence that an unfinished user may
- * reach the dashboard in general. The invariant that must hold, and is
- * tested, is absolute for every step with a page: a user who has not finished
- * the interview, samples, voice or strategy steps can never reach the
- * dashboard. (`strategy` was part of this exception until Milestone 3 built
- * `/onboarding/strategy` — Ruling R-M3-5.)
+ * **Ruling R3 is retired (Milestone 4).** It let `routeForStep('paywall')`
+ * fall through to `/dashboard`, because that step had no page and sending a
+ * user to a 404 was worse than sending them somewhere they would reach
+ * eventually. `/billing` exists now, so the exception is gone and the
+ * invariant is unconditional: there is no step short of `done` that routes to
+ * the dashboard, because there is no step short of `done` without a page of
+ * its own. A user who has not finished the interview, samples, voice, paywall
+ * or strategy steps can never reach the dashboard. A test pins it by iterating
+ * `ONBOARDING_STEPS` rather than a hand-written list, so a step added later
+ * cannot quietly reintroduce the fallback.
  */
 export function routeForStep(step: OnboardingStep): string {
   return PAGE_ROUTE_BY_STEP[step] ?? '/dashboard'
@@ -86,18 +93,22 @@ export function routeForStep(step: OnboardingStep): string {
  * The onboarding page a user at `step` must finish before reaching the
  * product, or `null` if there is none to force them onto.
  *
- * `null` for `paywall` and `done` — the first because Milestone 4 hasn't
- * built its page yet (Ruling R3), the last because onboarding is finished.
- * `(app)/(onboarded)/layout.tsx` redirects only when this returns non-null,
- * so it never redirects a `paywall` user away from the dashboard — the one
- * route they're actually allowed on. A `strategy` user IS redirected, to
- * `/onboarding/strategy`, because a strategy is the day-one deliverable and
- * nothing on the dashboard is true without one (Ruling R-M3-5). Combined
- * with `src/app/(app)/onboarding/**` living outside
- * the `(onboarded)` route group (so it never runs through this guard at
- * all), a redirect loop is structurally impossible rather than avoided by
- * comparing the current path against a target, which was the previous,
- * rejected approach (Ruling R8).
+ * `null` for `done` alone, because onboarding is finished and there is nothing
+ * left to force. Every other step has a page.
+ *
+ * `(app)/(onboarded)/layout.tsx` redirects whenever this returns non-null. A
+ * `paywall` user is sent to `/billing` and a `strategy` user to
+ * `/onboarding/strategy` — a strategy is the day-one deliverable and nothing
+ * on the dashboard is true without one (Ruling R-M3-5), and after Milestone 4
+ * nothing is generated without a card.
+ *
+ * **The redirect loop is prevented structurally, not by comparing paths.**
+ * Both `src/app/(app)/onboarding/**` and `src/app/(app)/billing` are siblings
+ * of the `(onboarded)` route group rather than children of it, so a request to
+ * either never renders through the guard that calls this. There is no current
+ * path compared against a target, which was the previous, rejected approach
+ * (Ruling R8). Any new route this function can return **must** be placed
+ * outside `(onboarded)` for the same reason.
  */
 export function onboardingRouteFor(step: OnboardingStep): string | null {
   return PAGE_ROUTE_BY_STEP[step] ?? null

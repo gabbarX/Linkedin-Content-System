@@ -10,11 +10,11 @@ Keep a private note (password manager, not the repo) with every ID, key and secr
 
 ## 1. Incorporate
 
-**Why first:** the domain registrar, the bank and Stripe all want a legal entity name, and the Community Management API application in step 6 describes the company by name. Changing it later means re-verifying everything downstream.
+**Why first:** the domain registrar, the bank and Razorpay all want a legal entity name, and the Community Management API application in step 6 describes the company by name. Changing it later means re-verifying everything downstream.
 
 - Register the company through whichever route your jurisdiction uses.
 - Record: legal entity name, company number, registered address, incorporation date.
-- Open the business bank account. Stripe pays out to it in step 12.
+- Open the business bank account. Razorpay settles to it (step 13).
 
 **Check it worked:** you have a certificate of incorporation and a bank account in the company's name.
 
@@ -28,11 +28,11 @@ Keep a private note (password manager, not the repo) with every ID, key and secr
 
 ## 3. Business email on that domain
 
-**Why:** Stripe and your customers both treat a `@gmail.com` address as a hobby project, and every account below wants a contact address that outlives a personal inbox. You also need a Google account for step 10.
+**Why:** Razorpay's KYC and your customers both treat a `@gmail.com` address as a hobby project, and every account below wants a contact address that outlives a personal inbox. You also need a Google account for step 10.
 
 - Google Workspace → sign up at `workspace.google.com`, choose the Business Starter plan, and enter the domain from step 2.
 - Follow the setup wizard's DNS step: it gives you MX records to add at your registrar. Add them exactly as shown.
-- Create at least: `you@yourdomain`, plus `hello@yourdomain` for support and `billing@yourdomain` for Stripe receipts.
+- Create at least: `you@yourdomain`, plus `hello@yourdomain` for support and `billing@yourdomain` for Razorpay receipts.
 
 **Check it worked:** send an email from `you@yourdomain` to a personal address and reply to it. Both directions must arrive. Google's admin console shows the domain as verified.
 
@@ -272,20 +272,59 @@ right and the token was simply stale or already used; request another.
 
 **Check it worked:** all four of the above. This is the first moment the product is real.
 
-## 13. Stripe
+## 13. Razorpay
 
-- Create a Stripe account at `dashboard.stripe.com` using the company from step 1 and the `billing@yourdomain` address. Complete business verification and connect the bank account — payouts are blocked until this is done, and it can take a couple of days.
-- **Product catalogue → Add product**:
-  - Name: `LinkBud`
-  - Pricing model: **Recurring**, **$49.00 USD**, billing period **Monthly**
-  - Save, then open the price you just created and copy its **price ID** (`price_...`). That is `STRIPE_PRICE_ID`.
-- **Developers → API keys** → copy the **Secret key** (`sk_...`). That is `STRIPE_SECRET_KEY`. Use the test-mode key while building; swap to the live key at launch.
+*Changed 2026-09-17: this section used to be Stripe. Spec §1.2 carries the
+reasoning — Stripe's India entity cannot onboard most new Indian businesses for
+domestic collection, and Razorpay Subscriptions gives UPI AutoPay, e-mandate and
+card mandates natively, in INR.*
 
-**About the 14-day trial:** it is applied when the subscription is created, not configured on the price, so there is nothing more to set in the dashboard today. Milestone 4 wires it with the card required up front. Do not add a trial on the price itself as well, or customers get two.
+**There is no trial.** Do not configure one anywhere in the dashboard. The card
+is required before the 12-week strategy is generated, and that is the whole of
+the gate.
 
-**Deferred to Milestone 4:** the webhook endpoint. Stripe needs a live URL to send events to, and the route (`/api/stripe/webhook`) does not exist yet. When it does: **Developers → Webhooks → Add endpoint**, point it at `https://yourdomain.com/api/stripe/webhook`, and copy the **signing secret** (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
+- Create an account at `dashboard.razorpay.com` using the company from step 1
+  and the `billing@yourdomain` address. Complete KYC and add the settlement
+  bank account — payouts are blocked until this is done and it can take a
+  couple of days. **You can build and test the entire integration before KYC
+  clears**, because test mode works immediately.
+- **Subscriptions → Plans → Create Plan**:
+  - Plan name: `Premium`
+  - Billing frequency: **Monthly**, interval **1**
+  - Amount: **₹1,499** (Razorpay stores this as `149900` paise)
+  - Save, then copy the **Plan ID** (`plan_…`). That is `RAZORPAY_PLAN_ID`.
+  - *Already done:* `plan_TcyWDCJsx4fnbQ`, verified live on 2026-09-17 —
+    monthly, interval 1, `149900` INR, active.
+- **Account & Settings → API Keys → Generate Test Key**: copy the **Key Id**
+  (`rzp_test_…`) into `RAZORPAY_KEY` and the **Key Secret** into
+  `RAZORPAY_SECRET`. The secret is shown once. Swap both for the `rzp_live_…`
+  pair at launch — and remember the plan id is different between modes, so
+  create the live plan too and swap `RAZORPAY_PLAN_ID` with them.
+- **Account & Settings → Webhooks → Add New Webhook**:
+  - Webhook URL: `https://yourdomain.com/api/razorpay/webhook`
+  - Secret: invent a long random string, and put the same value in
+    `RAZORPAY_WEBHOOK_SECRET`. Razorpay does not generate this for you.
+  - Active events — subscribe to all ten `subscription.*` events:
+    `subscription.authenticated`, `subscription.activated`,
+    `subscription.charged`, `subscription.completed`, `subscription.updated`,
+    `subscription.pending`, `subscription.halted`, `subscription.cancelled`,
+    `subscription.paused`, `subscription.resumed`.
+  - The endpoint answers `401` on a bad signature and `200` on everything
+    else, including events it ignores. If the dashboard shows persistent
+    `401`s, the secret in Razorpay and the secret in the environment disagree.
 
-**Check it worked:** the product shows a $49.00/month recurring price, and you have a `price_...` ID and an `sk_...` key in your private note.
+**About recurring payments in India.** A repeat charge needs a mandate the
+customer authorises once — UPI AutoPay, an e-mandate over netbanking, or a card
+registered under RBI's e-mandate rules. Razorpay Checkout handles all of that;
+nothing in LinkBud has to know which one the customer chose. In test mode, use
+Razorpay's published test card `4111 1111 1111 1111` with any future expiry and
+any CVV, or the UPI id `success@razorpay`.
+
+**Check it worked:** `curl -u "$RAZORPAY_KEY:$RAZORPAY_SECRET"
+https://api.razorpay.com/v1/plans/$RAZORPAY_PLAN_ID` returns a plan with
+`"period":"monthly"` and `"amount":149900`. That one call proves the key pair,
+the plan id and the mode all agree — a `rzp_test_` key cannot see a live plan,
+and the mismatch is otherwise invisible until checkout fails.
 
 ## 14. Resend, and verify the sending domain
 
@@ -387,7 +426,8 @@ fresh version is the whole check. If the key is wrong you get
 |---|---|---|
 | Supabase anon key | `.env.local`, Vercel, the browser bundle | — (it is public by design; RLS is what protects the data) |
 | Supabase service_role key | `.env.local`, Vercel (server only) | Any `NEXT_PUBLIC_` variable, any component, any screenshot |
-| Stripe secret key | `.env.local`, Vercel | The client, logs, error messages |
+| Razorpay key secret | `.env.local`, Vercel | The client, logs, error messages |
+| Razorpay webhook secret | `.env.local`, Vercel, the Razorpay webhook form | The client. If it ever diverges between the two places, every webhook 401s |
 | LinkedIn client secret | `.env.local`, Vercel | The client |
 | `TOKEN_ENCRYPTION_KEY` | Vercel, your password manager | Anywhere you might lose it — stored tokens cannot be recovered without it |
 | Customer LinkedIn tokens | Encrypted at rest in Postgres | Logs, error reports, anywhere in plaintext |

@@ -1,5 +1,5 @@
 import { createBrowserClient as createClient } from '@supabase/ssr'
-import { getPublicEnv } from '@/lib/env'
+import { getPublicEnv } from '@/lib/env.public'
 
 export function createBrowserClient() {
   // Inside the function body, never at module scope — the app must keep

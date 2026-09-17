@@ -6,6 +6,7 @@ import { nextStep, routeForStep } from '@/lib/onboarding/steps'
 import type { StrategyActionResult } from '@/lib/strategy/action-result'
 import { todayInTimeZone, upcomingWeekIndex } from '@/lib/strategy/schedule'
 import { createServerClient } from '@/lib/supabase/server'
+import { requireEntitled } from '@/server/billing/entitlement'
 import { getBusinessProfile, type BusinessProfile } from '@/server/db/repositories/business-profiles'
 import { getProfile, updateProfile, type Profile } from '@/server/db/repositories/profiles'
 import {
@@ -23,7 +24,7 @@ import { generateStrategy } from './generate-strategy'
 /**
  * The strategy module's server actions (spec §4.2), shared by
  * `/onboarding/strategy` (first build), `/strategy` (regenerate, and the
- * empty state a `paywall`/`done` user with no strategy row would see) and
+ * empty state a `done` user with no strategy row would see) and
  * the "write this week's briefs" retry. One file rather than an
  * `actions.ts` beside each page, because the three surfaces run the same
  * two operations and the M2 review pattern -- a boundary applied in one
@@ -40,7 +41,7 @@ import { generateStrategy } from './generate-strategy'
  * advanced the moment the strategy is durable -- BEFORE the coming week is
  * briefed -- because briefing is one more model call that can take a
  * minute, and if the platform cuts the action off inside it the user must
- * be left as a `paywall` user with a plan (next load lands on `/strategy`
+ * be left as a `done` user with a plan (next load lands on `/strategy`
  * with the brief button), not as a `strategy` user whose "Try again" spends
  * five more calls replacing a plan that already exists. A brief failure is
  * logged and NOT fatal for the same reason. `redirect()` stays outside every
@@ -135,11 +136,16 @@ async function briefWeek(
  * Used for the first build from `/onboarding/strategy` and for "Regenerate"
  * on `/strategy` (Ruling R-M3-7): `replaceStrategy` handles both, bumping
  * the version on a rebuild. The onboarding step is advanced only when the
- * user is actually at `strategy` -- a regenerating `paywall` user must not
- * be moved anywhere.
+ * user is actually at `strategy` -- a `done` user regenerating their plan
+ * must not be moved anywhere.
  */
 export async function buildStrategy(): Promise<StrategyActionResult> {
   const userId = await requireUserId()
+  // Enforcement point 3 of 3 (see src/server/billing/entitlement.ts). A server
+  // action is a public HTTP endpoint: the page guard constrains a cooperative
+  // browser, and a crafted POST skips it entirely. What it would skip past is
+  // six model calls billed to us.
+  await requireEntitled(userId)
   const { profile, business, voice } = await loadInputs(userId)
 
   // One fallback session for all six model calls: a provider observed down
@@ -201,6 +207,11 @@ export async function buildStrategy(): Promise<StrategyActionResult> {
  */
 export async function briefUpcomingWeek(): Promise<StrategyActionResult> {
   const userId = await requireUserId()
+  // Enforcement point 3 of 3 (see src/server/billing/entitlement.ts). A server
+  // action is a public HTTP endpoint: the page guard constrains a cooperative
+  // browser, and a crafted POST skips it entirely. What it would skip past is
+  // six model calls billed to us.
+  await requireEntitled(userId)
   const { profile, business, voice } = await loadInputs(userId)
 
   const strategy = await getStrategy(userId)

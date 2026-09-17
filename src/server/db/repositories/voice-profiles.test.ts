@@ -5,7 +5,7 @@ import type { DerivedVoiceProfile } from './voice-profiles'
  * I1b: `saveDerivedVoiceProfile` must refuse to overwrite a profile the
  * user has already edited, unless the caller explicitly opts in. Mocks
  * `../client` (the Prisma gateway) the same way `src/server/llm/client.test.ts`
- * mocks `@/lib/env` -- there is no database in this test environment
+ * mocks `@/lib/env.server` -- there is no database in this test environment
  * (`environment: 'node'`, no live Postgres), and repository modules have no
  * existing integration-test pattern to follow instead.
  */

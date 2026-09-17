@@ -3,6 +3,7 @@ import { StrategyBuilder } from '@/components/strategy/strategy-builder'
 import { isPastStep, routeForStep } from '@/lib/onboarding/steps'
 import { firstMondayAfter, formatIsoDate, todayInTimeZone } from '@/lib/strategy/schedule'
 import { createServerClient } from '@/lib/supabase/server'
+import { requireEntitled } from '@/server/billing/entitlement'
 import { getBusinessProfile } from '@/server/db/repositories/business-profiles'
 import { getProfile } from '@/server/db/repositories/profiles'
 import { getVoiceProfile } from '@/server/db/repositories/voice-profiles'
@@ -36,10 +37,20 @@ export default async function StrategyOnboardingPage() {
 
   // I1a, as on the other three onboarding pages: a user who has moved past
   // this step must not re-enter it. They have a strategy, so `/strategy` is
-  // where they belong -- named explicitly rather than via
-  // routeForStep('paywall'), which still falls back to the dashboard until
-  // Milestone 4 (Ruling R3).
+  // where they belong. Named explicitly rather than via routeForStep: the
+  // step after `strategy` is `done`, whose route is the dashboard, and the
+  // plan they just built is the thing worth showing them.
   if (isPastStep(profile.onboardingStep, 'strategy')) redirect('/strategy')
+
+  // Enforcement point 2 of 3 (see src/server/billing/entitlement.ts).
+  //
+  // This page is a sibling of the `(onboarded)` route group, not a child, so
+  // the layout guard never runs for it. Without this line an unpaid user could
+  // reach the build button directly, and spec 1.2 (amended 2026-09-17) puts
+  // the card before the strategy precisely because that button is six model
+  // calls. The server action checks again -- a page guard only constrains a
+  // browser that follows redirects.
+  await requireEntitled(user.id)
 
   // The two records a strategy is built from. Missing either means an
   // earlier step did not finish -- send the user to it rather than offer a

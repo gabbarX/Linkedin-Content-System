@@ -150,3 +150,24 @@ model strategies {
   pillars             pillars[]
   slots               slots[]
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model subscriptions {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                  String    @unique @db.Uuid
+  razorpay_subscription_id String    @unique
+  razorpay_plan_id         String
+  razorpay_customer_id     String?
+  status                   String
+  current_start            DateTime? @db.Timestamptz(6)
+  current_end              DateTime? @db.Timestamptz(6)
+  charge_at                DateTime? @db.Timestamptz(6)
+  cancel_at_cycle_end      Boolean   @default(false)
+  ended_at                 DateTime? @db.Timestamptz(6)
+  last_event_at            DateTime? @db.Timestamptz(6)
+  created_at               DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id])
+}
