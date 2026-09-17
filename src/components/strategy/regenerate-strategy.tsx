@@ -22,6 +22,15 @@ const FALLBACK_ERROR_MESSAGE =
 
 export type RegenerateStrategyProps = {
   version: number
+  /**
+   * How many posts the user has written against the current plan. Named in the
+   * dialog because rebuilding detaches every one of them: `posts.slot_id` is
+   * `on delete set null`, so the writing survives but stops being attached to
+   * a dated slot (Ruling R-M5-4). Telling someone their plan will be replaced
+   * while silently doing something to their drafts is the kind of surprise
+   * this dialog exists to prevent.
+   */
+  draftCount: number
   buildStrategy: () => Promise<StrategyActionResult>
 }
 
@@ -37,7 +46,11 @@ export type RegenerateStrategyProps = {
  * pending state has somewhere to live, and closes itself by navigating: a
  * successful build redirects to `/strategy`, which re-renders this page.
  */
-export function RegenerateStrategy({ version, buildStrategy }: RegenerateStrategyProps) {
+export function RegenerateStrategy({
+  version,
+  draftCount,
+  buildStrategy,
+}: RegenerateStrategyProps) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -76,6 +89,14 @@ export function RegenerateStrategy({ version, buildStrategy }: RegenerateStrateg
             Every pillar and all of the slots will be rebuilt from your current business and voice
             profiles, and this week will be briefed again. Version {version} cannot be restored
             afterwards. If the rebuild fails part-way, nothing changes.
+            {draftCount > 0 && (
+              <>
+                {' '}
+                {draftCount === 1
+                  ? 'The post you have written is kept — nothing you wrote is deleted — but it will no longer belong to a date on the new plan. You will find it under “Not on your current plan” in Posts.'
+                  : `The ${draftCount} posts you have written are kept — nothing you wrote is deleted — but they will no longer belong to a date on the new plan. You will find them under “Not on your current plan” in Posts.`}
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 

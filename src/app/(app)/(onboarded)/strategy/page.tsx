@@ -15,6 +15,7 @@ import {
 import { ARC_PHASES, PHASE_META, phaseForWeek } from '@/lib/strategy/vocabulary'
 import { createServerClient } from '@/lib/supabase/server'
 import { getProfile } from '@/server/db/repositories/profiles'
+import { listPosts } from '@/server/db/repositories/posts'
 import { getStrategy } from '@/server/db/repositories/strategies'
 import { briefUpcomingWeek, buildStrategy } from '@/server/strategy/actions'
 
@@ -40,8 +41,21 @@ export default async function StrategyPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [profile, strategy] = await Promise.all([getProfile(user.id), getStrategy(user.id)])
+  const [profile, strategy, posts] = await Promise.all([
+    getProfile(user.id),
+    getStrategy(user.id),
+    listPosts(user.id),
+  ])
   if (!profile) redirect('/login')
+
+  // Which slots already have something written, so the card can say "keep
+  // editing" rather than "write this post". One query for the page rather than
+  // one per card.
+  const draftedSlotIds = new Set(
+    posts
+      .filter((post) => post.slotId !== null && (post.finalText?.trim().length ?? 0) > 0)
+      .map((post) => post.slotId),
+  )
 
   const today = todayInTimeZone(profile.timezone)
 
@@ -152,6 +166,8 @@ export default async function StrategyPage() {
                   slot={slot}
                   pillarName={pillarName.get(slot.pillarId) ?? 'Pillar'}
                   briefLayout="open"
+                  writeHref={`/write/${slot.id}`}
+                  hasDraft={draftedSlotIds.has(slot.id)}
                 />
               ))}
             </div>
@@ -163,7 +179,11 @@ export default async function StrategyPage() {
         <Button nativeButton={false} render={<Link href="/calendar" />}>
           See all twelve weeks
         </Button>
-        <RegenerateStrategy version={strategy.version} buildStrategy={buildStrategy} />
+        <RegenerateStrategy
+                  version={strategy.version}
+                  draftCount={posts.length}
+                  buildStrategy={buildStrategy}
+                />
       </section>
     </>
   )

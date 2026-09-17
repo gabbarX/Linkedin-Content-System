@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import type { Slot } from '@/server/db/repositories/strategies'
+import { Button } from '@/components/ui/button'
 import { formatIsoDate } from '@/lib/strategy/schedule'
 import { FORMAT_META } from '@/lib/strategy/vocabulary'
 
@@ -14,11 +16,22 @@ import { FORMAT_META } from '@/lib/strategy/vocabulary'
  * `<details>`, because that page is about the shape of twelve weeks and
  * forty briefs open at once would bury it. Native `<details>` keeps this a
  * Server Component and is keyboard- and screen-reader-accessible for free.
+ *
+ * `writeHref` is optional and is a plain `<Link>` rather than a button with a
+ * handler, deliberately: a client control here would make this a Client
+ * Component and cost every calendar page forty hydration boundaries. Each
+ * surface decides for itself whether to offer it, and only a briefed slot can
+ * be written, so an unbriefed week correctly shows nothing rather than a link
+ * that would refuse.
  */
 export type SlotCardProps = {
   slot: Slot
   pillarName: string
   briefLayout: 'open' | 'collapsed'
+  /** Where "write this post" goes. Omitted on surfaces that do not offer it. */
+  writeHref?: string
+  /** True when a draft already exists, so the link says so. */
+  hasDraft?: boolean
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
@@ -60,7 +73,13 @@ function FullBrief({ slot }: { slot: Slot }) {
   )
 }
 
-export function SlotCard({ slot, pillarName, briefLayout }: SlotCardProps) {
+export function SlotCard({
+  slot,
+  pillarName,
+  briefLayout,
+  writeHref,
+  hasDraft = false,
+}: SlotCardProps) {
   const isBriefed = slot.status === 'briefed'
   return (
     <article className="rounded-lg border border-border bg-surface p-5">
@@ -94,6 +113,19 @@ export function SlotCard({ slot, pillarName, briefLayout }: SlotCardProps) {
             <FullBrief slot={slot} />
           </div>
         </details>
+      )}
+
+      {isBriefed && writeHref !== undefined && (
+        <div className="mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={writeHref} />}
+          >
+            {hasDraft ? 'Keep editing' : 'Write this post'}
+          </Button>
+        </div>
       )}
     </article>
   )

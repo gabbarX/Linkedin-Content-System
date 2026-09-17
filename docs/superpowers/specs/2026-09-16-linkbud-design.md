@@ -219,6 +219,12 @@ Context per generation: Voice Profile + the 3 most format-similar real samples +
 
 **Interface:** `buildBrief(slot, ctx) -> Brief`, `generateVariants(brief, voice) -> Variant[3]`, `polish(post, voice) -> Post`
 
+*Amended 2026-09-17, while planning Milestone 5.* Two points the four stages above leave open, decided before implementation because both are contracts with later milestones:
+
+**The three variants carry named approaches, not sampling variance.** They are generated as `hook-forward`, `story-forward` and `proof-forward` — three different answers to "what carries this post" — and the approach is stored on the variant row. Three samples of one prompt would make "the chosen index" mean something different on every post, and §4.8's own worked example ("your contrarian hooks outperform story hooks 2:1") is only derivable if the index means the same thing every time. Milestone 9 reasons in these names.
+
+**`approved` is not authority to publish.** A post moves `draft → approved` when the user has finished writing and marked it ready. That records a state of the text; it does not license anything to post it. Every publish is still a user-initiated tap at publish time — `docs/LINKEDIN-COMPLIANCE.md` §3: "The user pre-approved it" is not a human tap. Editing an approved post returns it to `draft`, so `approved` always describes the exact text that was reviewed.
+
 ### 4.5 `publisher`
 
 The most important interface in the system, because the adapter behind it changes twice.
@@ -342,6 +348,14 @@ Calendar (the 12-week board) and Strategy are one click away, not the front door
 **Calm editorial.** Warm off-white ground, near-black text, one restrained accent, real typographic hierarchy, generous whitespace, minimal chrome. The core act in this product is reading and approving words — the interface should behave like a writing tool, not a control panel.
 
 Explicitly banned: purple/indigo gradients, glassmorphism, neon on dark, emoji as UI iconography, more than one accent colour, decorative shadows. These are the default signatures of AI-generated interfaces and they make a paid product read as a weekend project.
+
+*Amended 2026-09-17, for Milestone 5.* The one-accent rule governs **LinkBud's own surfaces**. It does not govern a faithful rendering of somebody else's surface. The writer's post preview reproduces LinkedIn's own palette, spacing and system font stack, because its entire job is to show the writer what a reader will actually see — where the post folds behind "…see more", how the line breaks land, whether the hook survives truncation. A preview drawn in LinkBud's calm editorial palette would be prettier and would lie about all three.
+
+The exception is bounded, and the boundary is what makes it safe rather than the start of a slide:
+
+- LinkedIn's values live as `--li-*` custom properties inside a single `.linkedin-preview` block in `globals.css`. Components reference `var(--li-*)` and never a literal colour, so the "no hard-coded hex in components" rule is untouched.
+- Nothing outside that block may reference an `--li-*` value. LinkedIn blue is not available to LinkBud's own chrome, and `--lb-accent` remains the only accent the product has.
+- **No LinkedIn logo or wordmark.** The preview reproduces a layout, not a brand. Third-party trade dress inside a commercial product is a legal question rather than a design one, and the preview is unmistakable without it.
 
 ---
 

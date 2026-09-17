@@ -59,7 +59,13 @@ Plan: `docs/superpowers/plans/2026-09-17-linkbud-paywall.md`.
 - Gateway wiring (built early, in Milestone 2), with provider-appropriate prompt caching so the Voice Profile context is not re-billed on every variant.
 - Preference signals recorded: chosen variant index, cross-copied text, and the draft-to-published diff.
 
-*Plan written when this milestone starts.*
+Plan: `docs/superpowers/plans/2026-09-17-linkbud-writer.md`.
+
+Three things this milestone settled that the line above does not say:
+
+- **The three variants carry named approaches** (hook-forward, story-forward, proof-forward) rather than being three samples of one prompt. Milestone 9's headline example — "your contrarian hooks outperform story hooks 2:1" — is only derivable if the chosen index means the same thing on every post.
+- **Prompt caching is prompt ordering.** The stable context is the system prompt, byte-identical across the three variant calls; only a one-line instruction varies. No cache API, no TTL, and it works on whichever provider is configured.
+- **The draft-to-published diff is a draft-to-final diff**, computed between our generated text and our final text. `docs/LINKEDIN-COMPLIANCE.md` §4 names caching published text for easy diffing as the tempting violation, so the signal is taken where it can be taken lawfully and indefinitely.
 
 ## Milestone 6 — Jobs and Publisher
 

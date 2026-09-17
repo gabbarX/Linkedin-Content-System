@@ -6,6 +6,7 @@ import { formatIsoDate, todayInTimeZone, upcomingWeekIndex, weekBounds } from '@
 import { ARC_PHASES, PHASE_META, weeksForPhase } from '@/lib/strategy/vocabulary'
 import { createServerClient } from '@/lib/supabase/server'
 import { getProfile } from '@/server/db/repositories/profiles'
+import { listPosts } from '@/server/db/repositories/posts'
 import { getStrategy } from '@/server/db/repositories/strategies'
 
 /**
@@ -26,8 +27,18 @@ export default async function CalendarPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [profile, strategy] = await Promise.all([getProfile(user.id), getStrategy(user.id)])
+  const [profile, strategy, posts] = await Promise.all([
+    getProfile(user.id),
+    getStrategy(user.id),
+    listPosts(user.id),
+  ])
   if (!profile) redirect('/login')
+
+  const draftedSlotIds = new Set(
+    posts
+      .filter((post) => post.slotId !== null && (post.finalText?.trim().length ?? 0) > 0)
+      .map((post) => post.slotId),
+  )
 
   if (!strategy) {
     return (
@@ -97,6 +108,8 @@ export default async function CalendarPage() {
                         slot={slot}
                         pillarName={pillarName.get(slot.pillarId) ?? 'Pillar'}
                         briefLayout="collapsed"
+                        writeHref={`/write/${slot.id}`}
+                        hasDraft={draftedSlotIds.has(slot.id)}
                       />
                     ))}
                   </div>

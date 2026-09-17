@@ -388,13 +388,176 @@ would have been the wrong move. Plan:
 
 ## Milestone 5 — the writer
 
-- [ ] OpenRouter gateway behind one internal `llm` module
-- [ ] Brief stage — slot + strategy + business profile + active learnings
-- [ ] Three voice-matched variants generated in parallel from one brief
-- [ ] Variant selection recorded as a preference signal
-- [ ] Optional polish pass against an explicit rubric
-- [ ] Editor with a LinkedIn-accurate preview
-- [ ] Exemplar matching by format heuristics (OpenRouter serves no embeddings)
+Plan: `docs/superpowers/plans/2026-09-17-linkbud-writer.md` (12 tasks, rulings
+R-M5-1..13). Two items on the original list below were already stale: the
+gateway was pulled forward into Milestone 2 and made provider-agnostic in
+Milestone 3, and the "OpenRouter serves no embeddings" premise was revisited in
+spec §3.2 on 2026-09-17 — Gemini does serve them, and the heuristic decision
+stands anyway until measured and found wanting.
+
+- [x] ~~OpenRouter gateway behind one internal `llm` module~~ — done in
+      Milestone 2, provider-agnostic since Milestone 3
+- [x] **Spec §6.1 and §4.4 amended first**, before any code, following
+      Milestone 4's precedent: the pixel-accurate preview breaks the
+      one-accent ban, and that ban is in the binding spec rather than only in
+      `CLAUDE.md`. The exemption is bounded — LinkedIn's values are `--li-*`
+      inside one `.linkedin-preview` block, no component holds a literal
+      colour, nothing outside the block may use them, and there is no LinkedIn
+      logo or wordmark
+- [x] Migration 0006 — `posts`, `post_variants`; RLS enabled AND forced,
+      `posts` four policies and `post_variants` three (**no update policy**,
+      so the record of what the model produced cannot be rewritten under the
+      signals computed from it). Verified live: every check constraint
+      rejects its bad value, a second post on one slot is 23505, deleting a
+      slot detaches the post with its snapshot intact, deleting a post takes
+      its variants
+- [x] **The regenerate/slots backlog entry is cleared, and the decision was
+      taken before the FK was written as it asked.** `posts.slot_id` is
+      nullable `on delete set null` with the slot's theme, format and date
+      snapshotted, so rebuilding a strategy detaches drafts instead of
+      destroying them; they stay readable under "Not on your current plan" on
+      `/posts`, and the Regenerate dialog names how many will detach
+- [x] Brief stage — a real model call (R-M5-1) that takes the slot's stored
+      brief as input and is forbidden to change the angle or CTA destination,
+      so a post cannot drift from the plan the user already approved.
+      Persisted before the variants run, so a variant failure costs three
+      calls to retry rather than four
+- [x] Three voice-matched variants in parallel from one brief, each carrying a
+      **named approach** — hook-forward, story-forward, proof-forward
+      (R-M5-2). Without stable identities "the chosen index" is noise and
+      Milestone 9 could never derive spec §4.8's own example
+- [x] Variant selection recorded as a preference signal, with borrowed-span
+      detection against the *unchosen* variants and an edit ratio, both
+      computed in code at save time and both hand-rolled rather than adding a
+      diff dependency — **TDD**
+- [x] Optional polish pass against the explicit rubric, rendered side by side
+      with the user's own text and changing nothing until they accept
+- [x] Editor with a LinkedIn-accurate preview — the "…see more" fold, real
+      line-break rendering, a live code-point character counter that warns
+      over 3,000 and **never blocks a save**
+- [x] Exemplar matching by format heuristics — length band, list vs narrative,
+      opener type — taking up to three and fewer when the user has fewer
+      (the two-written-samples path is legitimate). Deterministic, so
+      regenerating twice uses the same exemplars — **tested**
+- [x] `/posts` — every post, with detached drafts in their own group, readable
+      in full, and deletable behind a labelled confirm
+- [x] Write entry points on `/strategy`, `/calendar` and the dashboard, from
+      one optional `writeHref` on the shared `SlotCard` (kept a Server
+      Component: a `<Link>`, not a client button)
+- [x] **Fixed on the way: the LLM error classifier was wrong on both
+      providers.** `describe-strategy-error.ts` and
+      `describe-derivation-error.ts` each tested for a missing-key string
+      `activeProvider()` can never emit — dead code on every provider — and
+      both matched `/OpenRouter returned 429/`, so once Gemini became the
+      default a rate-limited user was told the reply was unexpected instead of
+      to wait a minute. Classification now happens once, matching the
+      structural part of the message rather than a provider's name, with the
+      tests asserting every case over the `PROVIDERS` tuple so a third
+      provider is covered by construction
+- [x] **Fixed on the way: `docs/ARCHITECTURE.md` told implementers that RLS
+      was the real authorisation boundary** and that a missing
+      `where user_id = ...` was "a redundancy". That was written before the
+      Prisma adoption and left behind by it; on the path the application
+      actually uses it is false, and it is the most dangerous kind of stale
+      doc. Also corrected: a deleted types placeholder described as live, the
+      pre-split `src/lib/env.ts`, and "only `profiles` exists today" with six
+      migrations shipped
+- [x] **Fixed on the way: the dashboard's "drafting and publishing arrive in
+      later releases" escaped its own rule.** The no-milestone-copy test only
+      ever read `dashboardCopyForStep`, and that string sat inline in the
+      page. The copy moved under the test and the test was widened to scan
+      every string the module exports, so the next inline sentence cannot
+      repeat it
+- [x] **Browser QA, 2026-09-17 — two real generations went through end to
+      end, and it found three bugs.** Signed out, `/write/[slotId]` and
+      `/posts` both redirect to `/login`. With the subscription set to
+      `halted`, both redirect to `/billing` — and, with a page already loaded
+      *before* the halt, tapping Save wrote nothing: the action's own
+      `requireEntitled` refused, which is enforcement point 3 verified against
+      a live session rather than read in the source.
+      Generation from the dashboard's "Write this post": four calls, three
+      drafts at 896 / 1,062 / 1,016 characters with genuinely different
+      openings — a blunt claim, "A founder sat across from me last month",
+      and the 23-agency figure — so the named approaches produce materially
+      different posts rather than three samples. The brief was sharpened but
+      kept the same angle and CTA destination, which is the R-M5-1 guard
+      doing its job. Proof came from the profile; nothing was invented.
+      Selection, live counter, save, polish (side by side, accepted, promoted
+      to the draft with the pending copy cleared and the outcome recorded),
+      Mark ready → `approved` with `approved_at` stamped, then **editing the
+      approved post reverted it to `draft` and cleared `approved_at`** — the
+      invariant Milestone 6 depends on. Switching drafts with unsaved edits
+      raised the confirm naming the target draft and left the text untouched
+      on "Keep editing". Delete removed the post and its three variants.
+      **Regenerate with a draft present: version 3 → 4, and the draft
+      survived** — detached, all 866 characters intact, snapshot theme,
+      format and date intact, three variants intact, listed under "Not on
+      your current plan" and readable in full. The dialog counted it before
+      confirming.
+      Console clean on every page, all requests 200/304, Lighthouse
+      accessibility and best-practices 100 on `/posts` and `/write` (axe
+      covers roughly a third of WCAG, so that is necessary and not
+      sufficient; tab order was walked by hand and follows visual order with
+      every control labelled). An unbriefed week-2 slot refuses with a
+      pointer to `/strategy` and offers no write button.
+- [x] **Fixed during QA: the borrowed-span signal counted a draft's own words
+      as borrowed.** A post where one 80-character line was pasted from
+      another draft reported **575 of 1,004 characters borrowed, from both**
+      unchosen variants. Eleven of the twelve matched runs were coincidental:
+      all three variants come from one brief, so they independently produce
+      near-identical sentences — one "borrowed" run was the brief's own call
+      to action. A run now only counts if it appears in a draft the user did
+      **not** choose and does **not** appear in the one they did. Re-measured
+      on the same post: variant 1 only, 80 characters, exactly the line that
+      was pasted. Every unit test passed before and after the fix — they
+      tested the function against its own description rather than against
+      what the signal is for, which is why only real generated drafts
+      exposed it
+- [x] **Fixed during QA: the editor overflowed a 375px viewport by 10px.**
+      The layout declared grid columns only at `lg`, so at narrow widths the
+      implicit column was `auto` and sized to max-content — the preview's
+      author line carries an unbreakable email address and dragged the column
+      to 361px inside a 327px container. An explicit
+      `grid-cols-[minmax(0,1fr)]` at the base width fixes it; the comment in
+      the file says what it is for, because deleting it as tidy-up brings the
+      bug back silently
+- [x] **Fixed during QA: number agreement in the Regenerate dialog** — with
+      exactly one draft it read "The post you have written is kept … but
+      **they** will no longer belong"
+- [x] **A review of the finished branch found the same half-applied boundary
+      CLAUDE.md warns about, in code written while quoting that warning.**
+      `saveFinalText` reverted an approved post to `draft`, because `approved`
+      means "this exact text was reviewed" or it means nothing.
+      `resolvePolish` also writes `final_text`, and did not — so Mark ready →
+      Polish it → Use the polished version left a post reading `approved`
+      whose text was a rewrite the user had seen once in a compare pane and
+      never approved. That is the one state Milestone 6 is told it can trust
+      before posting to a real feed, and no crafted request was needed: the
+      Polish button is not disabled once a post is marked ready. The same
+      function left the preference signals describing the pre-polish text and
+      recorded an outcome even with no polish pending. Both text-writing paths
+      now go through one helper that owns the revert, the recomputation and
+      clearing any pending polish. **Re-verified in a browser afterwards:**
+      marked ready → `approved`; polished and accepted → back to `draft`,
+      `approved_at` cleared, `edit_ratio` recomputed to 0.266 against the
+      promoted text rather than left at 0
+- [x] Three more from the same review: `saveFinalText` left a pending polish
+      attached to text it had just replaced (two tabs — one polishes, the
+      other saves — and accepting afterwards silently overwrote the saved
+      edit); `selectVariant` reset seven signal fields and missed
+      `polish_outcome`; and `replaceVariants` scoped its delete on both
+      columns but its insert on neither, which is latent rather than live
+      because both callers check first — "the callers are careful" is not an
+      authorization model. `saveDraft` also took an unbounded string on a
+      public endpoint, now capped at sixteen times LinkedIn's limit as a fault
+      ceiling, not a writing rule. And `buildBrief`'s system prompt told the
+      model it was being given a voice profile that the prompt builder never
+      rendered — it accepted `voice` and dropped it. Every fix has a test, and
+      each was confirmed to **fail** against the reintroduced defect rather
+      than merely pass against the fix
+- [ ] **YOU: nothing in this milestone is blocked on you.** Nothing here
+      talks to LinkedIn or moves money, so unlike Milestones 0 and 4 there is
+      no leg that only works once deployed
 
 ## Milestone 6 — jobs and publishing
 

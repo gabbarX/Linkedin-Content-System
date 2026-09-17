@@ -165,13 +165,24 @@ export const OPENROUTER: Provider = {
  * Read inside a function body, never at module scope: the app must keep
  * building with no credentials present.
  */
+/**
+ * Every provider this gateway knows, in preference order: Gemini first, then
+ * OpenRouter (spec §8, amended 2026-09-17).
+ *
+ * Iterated rather than hand-listed at each site that cares, so adding a third
+ * provider is one entry here and not a hunt for the places that enumerate two.
+ * `classify-failure.ts` asserts over this tuple for the same reason.
+ */
+export const PROVIDERS = [GEMINI, OPENROUTER] as const
+
 export function activeProvider(): Provider {
   const env = getServerEnv()
-  if (env.GEMINI_API_KEY) return GEMINI
-  if (env.OPENROUTER_API_KEY) return OPENROUTER
+  for (const provider of PROVIDERS) {
+    if (env[provider.keyName]) return provider
+  }
   throw new LlmError(
     'No LLM provider is configured, so no model call can be made. Set ' +
-      `${GEMINI.keyName} or ${OPENROUTER.keyName}. See docs/ACCOUNTS.md.`,
+      `${PROVIDERS.map((provider) => provider.keyName).join(' or ')}. See docs/ACCOUNTS.md.`,
   )
 }
 

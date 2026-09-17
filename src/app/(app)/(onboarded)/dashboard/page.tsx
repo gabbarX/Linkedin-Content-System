@@ -4,10 +4,15 @@ import {
   RADAR_NOT_YET,
   dashboardCopyForStep,
   type DashboardBandCopy,
+  NEXT_SLOT_DRAFTED,
+  NEXT_SLOT_READY,
+  NEXT_SLOT_UNWRITTEN,
 } from '@/lib/onboarding/dashboard-copy'
 import { formatIsoDate, todayInTimeZone } from '@/lib/strategy/schedule'
 import { FORMAT_META } from '@/lib/strategy/vocabulary'
 import { createServerClient } from '@/lib/supabase/server'
+import { Button } from '@/components/ui/button'
+import { getPostBySlot } from '@/server/db/repositories/posts'
 import { getProfile } from '@/server/db/repositories/profiles'
 import { getNextSlot } from '@/server/db/repositories/strategies'
 
@@ -75,6 +80,16 @@ export default async function DashboardPage() {
   const profile = await getProfile(user.id)
   const copy = profile ? dashboardCopyForStep(profile.onboardingStep) : NO_PROFILE_COPY
   const nextSlot = profile ? await getNextSlot(user.id, todayInTimeZone(profile.timezone)) : null
+  // The post for that slot, if one exists, so the band can say what is
+  // actually true of it rather than a single message for every state.
+  const nextPost = nextSlot ? await getPostBySlot(user.id, nextSlot.id) : null
+  const nextPostText = nextPost?.finalText?.trim() ?? ''
+  const nextSlotCopy =
+    nextPost?.status === 'approved'
+      ? NEXT_SLOT_READY
+      : nextPostText.length > 0
+        ? NEXT_SLOT_DRAFTED
+        : NEXT_SLOT_UNWRITTEN
 
   return (
     <>
@@ -95,13 +110,33 @@ export default async function DashboardPage() {
               </p>
               <h3 className="mt-2 text-base font-medium">{nextSlot.theme}</h3>
               <p className="mt-1 text-sm text-text-muted">{nextSlot.angle}</p>
-              <p className="mt-4 text-sm text-text-muted">
-                Nothing to approve yet -- drafting and publishing arrive in later releases.{' '}
-                <Link href="/calendar" className="text-brand underline-offset-4 hover:underline">
+              <p className="mt-4 text-sm text-text-muted">{nextSlotCopy}</p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {nextSlot.status === 'briefed' ? (
+                  <Button
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={`/write/${nextSlot.id}`} />}
+                  >
+                    {nextPost ? 'Keep editing' : 'Write this post'}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    nativeButton={false}
+                    render={<Link href="/strategy" />}
+                  >
+                    Write this week&rsquo;s briefs
+                  </Button>
+                )}
+                <Link
+                  href="/calendar"
+                  className="text-sm text-brand underline-offset-4 hover:underline"
+                >
                   See the full calendar
                 </Link>
-                .
-              </p>
+              </div>
             </div>
           ) : (
             <Empty>{copy.needsYouNow}</Empty>

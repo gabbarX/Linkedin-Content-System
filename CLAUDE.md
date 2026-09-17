@@ -125,6 +125,14 @@ These are the default signatures of AI-generated interfaces and they make a paid
 - Decorative shadows
 - Hard-coded hex or `oklch()` values in components — use the tokens
 
+**One scoped exception, added 2026-09-17 (spec §6.1, Milestone 5):** the writer's
+post preview reproduces LinkedIn's palette and system font stack, because a
+preview drawn in our own palette lies about where the post folds. LinkedIn's
+values live as `--li-*` properties in a single `.linkedin-preview` block in
+`globals.css`; components reference `var(--li-*)` and never a literal, nothing
+outside that block may use them, and there is no LinkedIn logo or wordmark. This
+is not a precedent for a second palette anywhere else.
+
 ## Stop and ask the human first
 
 Do not do any of these unilaterally. Stop, explain the options, and wait:

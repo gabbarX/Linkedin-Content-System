@@ -148,14 +148,39 @@ These are the default signatures of AI-generated interfaces. They make a paid pr
 | Glassmorphism, backdrop blur panels | Decorative depth with no informational job, and it destroys text contrast on the exact surface where people read. |
 | Neon on dark | Contradicts calm editorial outright, and our dark palette is a muted warm charcoal, not a display surface. |
 | Emoji as UI iconography | Renders differently on every platform, carries no semantics for screen readers, and reads as amateur in a tool for professionals. Use Lucide. |
-| More than one accent colour | One accent means the accent always means "this is the action". Two accents mean neither means anything. `--lb-danger` is a state, not an accent. |
+| More than one accent colour | One accent means the accent always means "this is the action". Two accents mean neither means anything. `--lb-danger` is a state, not an accent. **One scoped exception**, see below. |
 | Decorative shadows | Shadow is for real elevation — a dialog, a dropdown over content. A shadow under a static card is noise. Use `--lb-border` for separation. |
 | Hard-coded hex or `oklch()` values in components | The point of the token layer is that the visual language changes in one file. A literal colour in a component is a permanent exception. |
-| A second font family | Two families (Inter, Fraunces) already carry the hierarchy. A third is decoration. |
+| A second font family | Two families (Inter, Fraunces) already carry the hierarchy. A third is decoration. **One scoped exception**, see below. |
 | Animating anything that is not a state change | Entrance animations on static content delay reading. `tw-animate-css` is installed for dialog/dropdown transitions, not for scroll reveals. |
 | Icon-only buttons for destructive or irreversible actions | Publishing to a real customer's real feed gets a labelled button, every time. |
 
 ## How to reference tokens in components
+
+## The one exemption: `.linkedin-preview`
+
+Spec §6.1 was amended on 2026-09-17 for Milestone 5. The writer's post preview
+reproduces LinkedIn's own palette, spacing and system font stack, because its
+job is to show the writer what a reader actually sees — where the post folds
+behind "…see more", how the line breaks land, whether the hook survives
+truncation. Drawn in LinkBud's palette it would be prettier and would lie about
+all three.
+
+This is the only place in the product where a colour outside the `--lb-*` set is
+allowed, and the rules that keep it an exception rather than a precedent:
+
+- LinkedIn's values are `--li-*` custom properties declared in **one** block in
+  `globals.css`, scoped to `.linkedin-preview`. Components reference
+  `var(--li-*)`; no component contains a literal colour, so the hard-coded-hex
+  ban is untouched.
+- **Nothing outside that block may reference an `--li-*` value.** LinkedIn blue
+  is not available to LinkBud's chrome. `--lb-accent` is still the only accent
+  the product has.
+- **No LinkedIn logo or wordmark.** The preview reproduces a layout, not a
+  brand.
+
+If you are reaching for a second palette anywhere else, this section is not your
+precedent — it is the argument for why you need your own amendment.
 
 Prefer Tailwind utilities generated from the theme: `bg-bg`, `bg-surface`, `text-text-muted`, `border-border`, `bg-brand text-accent-fg`, `font-display`, `rounded-lg`.
 
