@@ -12,10 +12,9 @@ The foundation (Milestone 1) is complete. Everything in this section is real cod
 
 | Area | Files | State |
 |---|---|---|
-| Configuration | `src/lib/env.ts` (+ `env.test.ts`) | Zod-validated. `getServerEnv()` parses the full server schema and throws on anything missing; `getPublicEnv()` does the same for the three `NEXT_PUBLIC_*` values the Supabase clients depend on, and is what every live path calls. `publicEnv` is the non-throwing accessor, used where a missing value must not be fatal — the sign-in redirect URL, and the proxy's credential check. This is the only module that reads `process.env`. |
+| Configuration | `src/lib/env.public.ts`, `src/lib/env.server.ts` (+ tests) | Zod-validated. `getServerEnv()` parses the full server schema and throws on anything missing; `getPublicEnv()` does the same for the three `NEXT_PUBLIC_*` values the Supabase clients depend on, and is what every live path calls. `publicEnv` is the non-throwing accessor, used where a missing value must not be fatal — the sign-in redirect URL, and the proxy's credential check. These are the only modules that read `process.env`. Split in Milestone 4 so a client-safe file can no longer see the name of a server secret. |
 | Supabase clients | `src/lib/supabase/browser.ts`, `server.ts`, `admin.ts` | Three clients. `browser` and `server` use the anon key; `admin` uses the service role and carries `import 'server-only'` so an accidental client import fails the build. |
 | Schema | `supabase/migrations/0001_profiles.sql` | One table, `public.profiles`, RLS enabled, three own-row policies, a `handle_new_user()` signup trigger and a `touch_updated_at()` trigger. |
-| Generated types | `src/lib/types/database.ts` | **Placeholder, hand-written.** There is no live Supabase project yet, so `supabase gen types` cannot run. Shaped to match real codegen output so it drops in. |
 | Auth | `src/app/(auth)/login/page.tsx`, `src/app/auth/callback/route.ts`, `src/app/auth/signout/route.ts`, `src/lib/auth/safe-next.ts` | Magic link + Google. The callback validates its redirect target through `safeNext()` (tested) so `?next=` cannot be used as an open redirect. |
 | Session | `src/proxy.ts` | Refreshes the Supabase session on every matched request when credentials are configured, and bails out untouched when they are not. It does **not** guard routes. Next.js 16 renamed this file convention from `middleware` to `proxy`. |
 | Shell | `src/app/(app)/layout.tsx`, `src/components/app-nav.tsx`, `src/app/(app)/dashboard/page.tsx` | The session guard lives in the `(app)` layout: no user, redirect to `/login`. The dashboard renders the three bands as empty states. |
@@ -27,11 +26,12 @@ Two of the eight product modules below exist as of Milestone 3:
 |---|---|---|
 | `onboarding` (Milestone 2) | `src/lib/onboarding/*`, `src/server/onboarding/*`, `src/server/db/repositories/{business-profiles,voice-profiles,writing-samples}.ts`, `src/app/(app)/onboarding/{interview,samples,voice}/`, `src/app/(app)/settings/business/` | Interview, samples, derived and editable Voice Profile, editable Business Profile. Migration `0003`. |
 | LLM gateway | `src/server/llm/client.ts`, `src/server/llm/complete-with-fallback.ts` | `completeJson` (one call, strict `json_schema`, validated on return) and a bounded, tested provider fallback beside it. |
+| `writer` (Milestone 5) | `src/lib/post/*`, `src/server/writer/*`, `src/server/db/repositories/posts.ts`, `src/app/(app)/(onboarded)/write/[slotId]/`, `src/app/(app)/(onboarded)/posts/`, `src/components/writer/*` | Brief, three named variants, editor with a LinkedIn preview, optional polish, preference signals. Migration `0006`. Rulings in `docs/superpowers/plans/2026-09-17-linkbud-writer.md`. |
 | `strategy` (Milestone 3) | `src/lib/strategy/{vocabulary,schedule}.ts`, `src/server/strategy/*`, `src/server/db/repositories/strategies.ts`, `src/app/(app)/onboarding/strategy/`, `src/app/(app)/(onboarded)/{strategy,calendar}/`, `src/components/strategy/*` | Pillars, arc, 36–60 dated slots, the coming week briefed in full, `/strategy` and `/calendar`. Migration `0004`. Rulings in `docs/superpowers/plans/2026-09-16-linkbud-strategy.md`. |
 
 The onboarding step machine (`src/lib/onboarding/steps.ts`) routes `interview`, `samples`, `voice` and `strategy` to their pages; `paywall` is Milestone 4's and still falls back to the dashboard.
 
-**The other six — `radar`, `writer`, `publisher`, `jobs`, `attribution`, `learnings` — do not exist yet.** There is no `src/server/publisher/`, no `jobs` table. Do not import from them, do not describe them as implemented, and do not assume a helper exists because this document names its signature.
+**The other five — `radar`, `publisher`, `jobs`, `attribution`, `learnings` — do not exist yet.** There is no `src/server/publisher/`, no `jobs` table. Do not import from them, do not describe them as implemented, and do not assume a helper exists because this document names its signature.
 
 ---
 
@@ -88,10 +88,20 @@ refreshRadar(userId: string): Promise<TrendItem[]>
 Context per generation: Voice Profile + the 3 most format-similar real samples + the brief. Exemplar matching uses format and structure heuristics (length band, opener type, list vs narrative, paragraph count), not vectors — OpenRouter does not serve embeddings.
 
 ```ts
-buildBrief(slot: Slot, ctx: BriefContext): Promise<Brief>
-generateVariants(brief: Brief, voice: VoiceProfile): Promise<[Variant, Variant, Variant]>
-polish(post: Post, voice: VoiceProfile): Promise<Post>
+buildBrief(input: BuildBriefInput): Promise<Brief>
+generateVariants(input: GenerateVariantsInput): Promise<Variant[]>
+polish(input: PolishInput): Promise<string>
 ```
+
+**As built (Milestone 5).** Four model calls per post: one brief, three variants in parallel on one shared `FallbackSession`. The brief is persisted the moment it returns, before the variants run, so a variant failure costs three calls to retry rather than four.
+
+The three variants carry **named approaches** — `hook-forward`, `story-forward`, `proof-forward` — stored on each variant row. That is what makes `posts.variant_index` a signal Milestone 9 can learn from: index 1 means the same thing on every post ever generated.
+
+Everything stable (voice, business, exemplars, brief) sits in the **system** prompt, byte-identical across the three variant calls, and only a one-line approach instruction varies. That ordering is the prompt-caching mechanism; reversing it disables the discount silently.
+
+`polish` never overwrites. It returns text stored as `posts.polished_text` for the user to accept or discard.
+
+**`approved` is not authority to publish.** It records that the user finished writing and reviewed that exact text; editing returns the post to `draft`. Milestone 6 still requires a tap at publish time — `docs/LINKEDIN-COMPLIANCE.md` §3.
 
 **Depends on:** `onboarding` (voice, samples), `strategy` (the slot), `radar` (optional trend item), and active learning *records*. See the dependency-direction section for why that is not a cycle.
 
@@ -196,18 +206,18 @@ Rules that follow from it, stated so they cannot be rationalised away:
 
 ## Data model
 
-Core tables, all with RLS keyed to `auth.uid()`. Only `profiles` exists today; the rest arrive with their milestone.
+Core tables, all with RLS keyed to `auth.uid()`. Migrations `0001`–`0006` have shipped, so everything through `post_variants` exists; the rest arrive with their milestone.
 
 | Table | Purpose |
 |---|---|
-| `profiles` | Supabase Auth mirror, timezone, onboarding state. The only table that exists today. |
+| `profiles` | Supabase Auth mirror, timezone, onboarding state |
 | `business_profiles` | Offer, ICP, transformation, proof, POV, taboos, CTA target |
 | `voice_profiles` | Structured voice fields, user-edited |
 | `writing_samples` | Pasted posts, with derived format metadata for exemplar matching |
 | `strategies` | The 12-week arc, generated-at, version |
 | `pillars` | 4–5 content pillars per strategy |
 | `slots` | Dated slots for the 12 weeks: pillar, theme, angle, format, brief, status |
-| `posts` | draft → approved → scheduled → published → failed. Holds `variant_index`, `final_text`, `edit_diff`, `linkedin_urn` |
+| `posts` | draft → approved → scheduled → published → failed. Holds `variant_index`, `final_text`, the preference signals and `linkedin_urn`. `slot_id` is nullable `on delete set null`, with the slot's theme, format and date snapshotted, so regenerating a strategy detaches drafts instead of destroying them |
 | `post_variants` | The three generated drafts per post |
 | `linkedin_connections` | Encrypted tokens, expiry, granted scopes, adapter id |
 | `jobs` | type, payload, run_at, attempts, status, idempotency_key |
@@ -229,5 +239,7 @@ One migration file per change, in `supabase/migrations/`, numbered. Never edit a
 
 1. A request hits `src/proxy.ts` (the Next.js 16 name for what used to be `middleware.ts`), which refreshes the Supabase session cookie. It does not authorise anything. With no Supabase credentials configured it returns immediately, so the public pages render on a fresh clone.
 2. If the path is under `(app)`, `src/app/(app)/layout.tsx` calls `supabase.auth.getUser()` and redirects to `/login` when there is no user. **This is where route protection lives** — adding an authenticated route means putting it inside the `(app)` group, not adding a matcher to the proxy.
-3. Server components use `await createServerClient()`. Route handlers and cron workers that must bypass RLS use `createAdminClient()`, which is `server-only`.
-4. RLS is the real authorisation boundary. A missing `where user_id = ...` should be a redundancy, not the only thing standing between two customers' data.
+3. Server components use `await createServerClient()` for **auth only**. Every query goes through a repository in `src/server/db/repositories`, which uses Prisma. `createAdminClient()` is `server-only` and currently unused.
+4. **RLS is not the authorisation boundary on the path the application actually uses.** Prisma connects as a role with `BYPASSRLS`, so a missing `where user_id = ...` is a cross-customer data leak, not a redundancy. Ownership is enforced in application code: every repository function takes `userId` first and scopes on it, and an ESLint rule makes importing the raw client outside `src/server/db` a build failure. RLS remains enabled and forced on every table because it is the real guard on Supabase's Data API, which is reachable by anyone holding the public anon key.
+
+*(This section said the opposite until Milestone 5. It was written before the Prisma adoption and was left behind by it — which mattered, because it told the next implementer that a missing scope would be caught by the database.)*

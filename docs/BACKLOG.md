@@ -79,14 +79,18 @@ time, timezone, the voice profile after onboarding) has no page yet.
 
 ## Strategy
 
-**Regenerate replaces every slot; nothing hangs off a slot yet.**
-`replaceStrategy` deletes the user's pillars and slots and recreates them
-(Ruling R-M3-7). That is correct today because slots have no children. From
-Milestone 5, posts reference slots; a regenerate must then either refuse while
-posts exist, or re-parent/archive them — silently orphaning a customer's
-drafts is not an option.
-**Trigger:** the `posts` migration in Milestone 5 — decide before the FK is
-written.
+~~**Regenerate replaces every slot; nothing hangs off a slot yet.**~~
+**Done, Milestone 5** (`feat(db): add posts and post_variants`). The trigger
+this entry named — the `posts` migration — arrived, and the decision was taken
+before the FK was written, as it asked. `posts.slot_id` is nullable with
+`on delete set null`, and every post snapshots its slot's theme, format and
+date at creation. Regenerating therefore detaches a customer's drafts instead
+of destroying them, they stay readable under "Not on your current plan" on
+`/posts`, and the Regenerate dialog names how many will be detached before the
+user confirms. Neither of the two options this entry offered was taken: refusing
+while posts exist would have made a one-tap action a chore, and re-parenting by
+week and position would have left a draft sitting under a heading it no longer
+matched.
 
 **Posting days are fixed per cadence.** 3 → Mon/Wed/Fri, 4 → Mon/Tue/Thu/Fri,
 5 → Mon–Fri (`src/lib/strategy/schedule.ts`, Ruling R-M3-2). The interview does
@@ -222,7 +226,11 @@ Three things follow, none of which is a problem today:
    by reflex — the selection method is recorded in the module comment.
 2. **Free endpoints are rate-limited by request count and queue.** Measured
    8–12s per call. Onboarding makes one call per user and can show a pending
-   state; Milestone 5's writer makes three per post and will feel this first.
+   state; the writer makes **four** per post — one brief plus three variants —
+   and a fifth if the post is polished. At cadence 3 a fully written week is
+   12–15 calls. Generation is never automatic (a tap is always required), which
+   is what stops browsing the calendar from spending anything, but this is
+   still the surface that will hit a limit first.
 3. **Free endpoints generally carry a training-data policy.** Prompts sent to
    them may be used by providers for training, and what LinkBud sends is the
    customer's offer, ICP, proof points and writing samples. That is acceptable

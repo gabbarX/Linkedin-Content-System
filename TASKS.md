@@ -388,13 +388,87 @@ would have been the wrong move. Plan:
 
 ## Milestone 5 — the writer
 
-- [ ] OpenRouter gateway behind one internal `llm` module
-- [ ] Brief stage — slot + strategy + business profile + active learnings
-- [ ] Three voice-matched variants generated in parallel from one brief
-- [ ] Variant selection recorded as a preference signal
-- [ ] Optional polish pass against an explicit rubric
-- [ ] Editor with a LinkedIn-accurate preview
-- [ ] Exemplar matching by format heuristics (OpenRouter serves no embeddings)
+Plan: `docs/superpowers/plans/2026-09-17-linkbud-writer.md` (12 tasks, rulings
+R-M5-1..13). Two items on the original list below were already stale: the
+gateway was pulled forward into Milestone 2 and made provider-agnostic in
+Milestone 3, and the "OpenRouter serves no embeddings" premise was revisited in
+spec §3.2 on 2026-09-17 — Gemini does serve them, and the heuristic decision
+stands anyway until measured and found wanting.
+
+- [x] ~~OpenRouter gateway behind one internal `llm` module~~ — done in
+      Milestone 2, provider-agnostic since Milestone 3
+- [x] **Spec §6.1 and §4.4 amended first**, before any code, following
+      Milestone 4's precedent: the pixel-accurate preview breaks the
+      one-accent ban, and that ban is in the binding spec rather than only in
+      `CLAUDE.md`. The exemption is bounded — LinkedIn's values are `--li-*`
+      inside one `.linkedin-preview` block, no component holds a literal
+      colour, nothing outside the block may use them, and there is no LinkedIn
+      logo or wordmark
+- [x] Migration 0006 — `posts`, `post_variants`; RLS enabled AND forced,
+      `posts` four policies and `post_variants` three (**no update policy**,
+      so the record of what the model produced cannot be rewritten under the
+      signals computed from it). Verified live: every check constraint
+      rejects its bad value, a second post on one slot is 23505, deleting a
+      slot detaches the post with its snapshot intact, deleting a post takes
+      its variants
+- [x] **The regenerate/slots backlog entry is cleared, and the decision was
+      taken before the FK was written as it asked.** `posts.slot_id` is
+      nullable `on delete set null` with the slot's theme, format and date
+      snapshotted, so rebuilding a strategy detaches drafts instead of
+      destroying them; they stay readable under "Not on your current plan" on
+      `/posts`, and the Regenerate dialog names how many will detach
+- [x] Brief stage — a real model call (R-M5-1) that takes the slot's stored
+      brief as input and is forbidden to change the angle or CTA destination,
+      so a post cannot drift from the plan the user already approved.
+      Persisted before the variants run, so a variant failure costs three
+      calls to retry rather than four
+- [x] Three voice-matched variants in parallel from one brief, each carrying a
+      **named approach** — hook-forward, story-forward, proof-forward
+      (R-M5-2). Without stable identities "the chosen index" is noise and
+      Milestone 9 could never derive spec §4.8's own example
+- [x] Variant selection recorded as a preference signal, with borrowed-span
+      detection against the *unchosen* variants and an edit ratio, both
+      computed in code at save time and both hand-rolled rather than adding a
+      diff dependency — **TDD**
+- [x] Optional polish pass against the explicit rubric, rendered side by side
+      with the user's own text and changing nothing until they accept
+- [x] Editor with a LinkedIn-accurate preview — the "…see more" fold, real
+      line-break rendering, a live code-point character counter that warns
+      over 3,000 and **never blocks a save**
+- [x] Exemplar matching by format heuristics — length band, list vs narrative,
+      opener type — taking up to three and fewer when the user has fewer
+      (the two-written-samples path is legitimate). Deterministic, so
+      regenerating twice uses the same exemplars — **tested**
+- [x] `/posts` — every post, with detached drafts in their own group, readable
+      in full, and deletable behind a labelled confirm
+- [x] Write entry points on `/strategy`, `/calendar` and the dashboard, from
+      one optional `writeHref` on the shared `SlotCard` (kept a Server
+      Component: a `<Link>`, not a client button)
+- [x] **Fixed on the way: the LLM error classifier was wrong on both
+      providers.** `describe-strategy-error.ts` and
+      `describe-derivation-error.ts` each tested for a missing-key string
+      `activeProvider()` can never emit — dead code on every provider — and
+      both matched `/OpenRouter returned 429/`, so once Gemini became the
+      default a rate-limited user was told the reply was unexpected instead of
+      to wait a minute. Classification now happens once, matching the
+      structural part of the message rather than a provider's name, with the
+      tests asserting every case over the `PROVIDERS` tuple so a third
+      provider is covered by construction
+- [x] **Fixed on the way: `docs/ARCHITECTURE.md` told implementers that RLS
+      was the real authorisation boundary** and that a missing
+      `where user_id = ...` was "a redundancy". That was written before the
+      Prisma adoption and left behind by it; on the path the application
+      actually uses it is false, and it is the most dangerous kind of stale
+      doc. Also corrected: a deleted types placeholder described as live, the
+      pre-split `src/lib/env.ts`, and "only `profiles` exists today" with six
+      migrations shipped
+- [x] **Fixed on the way: the dashboard's "drafting and publishing arrive in
+      later releases" escaped its own rule.** The no-milestone-copy test only
+      ever read `dashboardCopyForStep`, and that string sat inline in the
+      page. The copy moved under the test and the test was widened to scan
+      every string the module exports, so the next inline sentence cannot
+      repeat it
+- [ ] Browser QA — nothing here ships unverified
 
 ## Milestone 6 — jobs and publishing
 
