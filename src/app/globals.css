@@ -114,6 +114,60 @@ body {
   white-space: pre-wrap;
 }
 
+/* ---------------------------------------------------------------------------
+   The one exception to the single-palette rule.
+   ---------------------------------------------------------------------------
+   Spec 6.1 was amended on 2026-09-17 for Milestone 5: LinkBud has exactly one
+   accent, and this block does not change that. These are LinkedIn's values,
+   used only to draw a faithful preview of LinkedIn's own surface, because a
+   preview drawn in our palette would be prettier and would lie about where the
+   post folds, how the line breaks land and whether the hook survives being
+   truncated -- the three things a writer actually needs to see.
+
+   The boundary is what makes this an exception rather than the start of a
+   slide, and it is enforced by convention plus review:
+
+     * Everything lives under .linkedin-preview. Components reference
+       var(--li-*) and never a literal colour, so the "no hard-coded hex in a
+       component" rule is untouched.
+     * Nothing outside this block may reference an --li-* value. LinkedIn blue
+       is not available to LinkBud's own chrome.
+     * There is no LinkedIn logo or wordmark anywhere. This reproduces a
+       layout, not a brand.
+
+   See docs/DESIGN-SYSTEM.md, "The one exemption". */
+.linkedin-preview {
+  --li-surface: #ffffff;
+  --li-text: rgba(0, 0, 0, 0.9);
+  --li-muted: rgba(0, 0, 0, 0.6);
+  --li-faint: rgba(0, 0, 0, 0.08);
+  --li-link: #0a66c2;
+  --li-avatar: #e1e9ee;
+  --li-font:
+    -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+  background: var(--li-surface);
+  color: var(--li-text);
+  font-family: var(--li-font);
+  /* LinkedIn's feed body size and leading. */
+  font-size: 14px;
+  line-height: 1.42857;
+}
+
+/* The feed renders a post's own newlines literally, which is why line breaks
+   are a voice decision in this product rather than formatting. */
+.linkedin-preview-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The "...see more" affordance. Not a button in our UI -- the preview is a
+   picture of LinkedIn, and tapping it here expands our own preview. */
+.linkedin-preview-more {
+  color: var(--li-muted);
+  font-family: var(--li-font);
+}
+
 /* shadcn's token names, pointed at the --lb-* palette so there is one
    palette and not two. This block is deliberately PLAIN (unlayered):
    `shadcn init` writes its own oklch() defaults as unlayered :root
