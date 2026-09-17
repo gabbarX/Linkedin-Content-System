@@ -56,9 +56,17 @@
 - [x] **Task 9: `/posts` and deletion.**
 - [x] **Task 10: Entry points and the Regenerate guard.**
 - [x] **Task 11: Documentation.**
-- [ ] **Task 12: Browser QA** — `/ecc:browser-qa`. Nothing ships unverified.
+- [x] **Task 12: Browser QA** — `/ecc:browser-qa`. Two real generations end to end; found and fixed three bugs (the borrowed-span over-count, a 10px overflow at 375px, and a singular/plural slip). Evidence in `TASKS.md`.
 
 ---
+
+## Execution notes (2026-09-17)
+
+Where the build departed from the plan above, and why:
+
+- **The borrowed-span signal was wrong in a way the unit tests could not catch.** It counted any 40-character run shared with an unchosen variant, and all three variants come from one brief, so they share a great deal of phrasing. On real generated drafts a single pasted line measured as 57% borrowed. The fix — exclude text that also appears in the chosen draft — is small, but the lesson is not: the tests asserted the function did what its own docstring said, and the docstring was describing the wrong measurement. Only running it on real output exposed it.
+- **`ARCHITECTURE.md` said RLS was the authorisation boundary.** Found while writing Task 11 rather than planned for. It predated the Prisma adoption and had been left behind by it, which made it the most dangerous kind of stale doc — it told the next implementer the database would catch a missing `userId` scope.
+- **The 375px overflow came from a missing base grid column**, not from anything in the new CSS. Worth recording because the fix looks like noise: `grid-cols-[minmax(0,1fr)]` alongside an `lg:` variant reads as redundant and is not.
 
 ## Self-review
 

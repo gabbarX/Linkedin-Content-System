@@ -468,7 +468,65 @@ stands anyway until measured and found wanting.
       page. The copy moved under the test and the test was widened to scan
       every string the module exports, so the next inline sentence cannot
       repeat it
-- [ ] Browser QA — nothing here ships unverified
+- [x] **Browser QA, 2026-09-17 — two real generations went through end to
+      end, and it found three bugs.** Signed out, `/write/[slotId]` and
+      `/posts` both redirect to `/login`. With the subscription set to
+      `halted`, both redirect to `/billing` — and, with a page already loaded
+      *before* the halt, tapping Save wrote nothing: the action's own
+      `requireEntitled` refused, which is enforcement point 3 verified against
+      a live session rather than read in the source.
+      Generation from the dashboard's "Write this post": four calls, three
+      drafts at 896 / 1,062 / 1,016 characters with genuinely different
+      openings — a blunt claim, "A founder sat across from me last month",
+      and the 23-agency figure — so the named approaches produce materially
+      different posts rather than three samples. The brief was sharpened but
+      kept the same angle and CTA destination, which is the R-M5-1 guard
+      doing its job. Proof came from the profile; nothing was invented.
+      Selection, live counter, save, polish (side by side, accepted, promoted
+      to the draft with the pending copy cleared and the outcome recorded),
+      Mark ready → `approved` with `approved_at` stamped, then **editing the
+      approved post reverted it to `draft` and cleared `approved_at`** — the
+      invariant Milestone 6 depends on. Switching drafts with unsaved edits
+      raised the confirm naming the target draft and left the text untouched
+      on "Keep editing". Delete removed the post and its three variants.
+      **Regenerate with a draft present: version 3 → 4, and the draft
+      survived** — detached, all 866 characters intact, snapshot theme,
+      format and date intact, three variants intact, listed under "Not on
+      your current plan" and readable in full. The dialog counted it before
+      confirming.
+      Console clean on every page, all requests 200/304, Lighthouse
+      accessibility and best-practices 100 on `/posts` and `/write` (axe
+      covers roughly a third of WCAG, so that is necessary and not
+      sufficient; tab order was walked by hand and follows visual order with
+      every control labelled). An unbriefed week-2 slot refuses with a
+      pointer to `/strategy` and offers no write button.
+- [x] **Fixed during QA: the borrowed-span signal counted a draft's own words
+      as borrowed.** A post where one 80-character line was pasted from
+      another draft reported **575 of 1,004 characters borrowed, from both**
+      unchosen variants. Eleven of the twelve matched runs were coincidental:
+      all three variants come from one brief, so they independently produce
+      near-identical sentences — one "borrowed" run was the brief's own call
+      to action. A run now only counts if it appears in a draft the user did
+      **not** choose and does **not** appear in the one they did. Re-measured
+      on the same post: variant 1 only, 80 characters, exactly the line that
+      was pasted. Every unit test passed before and after the fix — they
+      tested the function against its own description rather than against
+      what the signal is for, which is why only real generated drafts
+      exposed it
+- [x] **Fixed during QA: the editor overflowed a 375px viewport by 10px.**
+      The layout declared grid columns only at `lg`, so at narrow widths the
+      implicit column was `auto` and sized to max-content — the preview's
+      author line carries an unbreakable email address and dragged the column
+      to 361px inside a 327px container. An explicit
+      `grid-cols-[minmax(0,1fr)]` at the base width fixes it; the comment in
+      the file says what it is for, because deleting it as tidy-up brings the
+      bug back silently
+- [x] **Fixed during QA: number agreement in the Regenerate dialog** — with
+      exactly one draft it read "The post you have written is kept … but
+      **they** will no longer belong"
+- [ ] **YOU: nothing in this milestone is blocked on you.** Nothing here
+      talks to LinkedIn or moves money, so unlike Milestones 0 and 4 there is
+      no leg that only works once deployed
 
 ## Milestone 6 — jobs and publishing
 
