@@ -1,6 +1,6 @@
 import 'server-only'
 import { z, type ZodType } from 'zod'
-import { getServerEnv } from '@/lib/env'
+import { getServerEnv } from '@/lib/env.server'
 
 /**
  * The LLM gateway. One module, one entry point, no SDK.

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createBrowserClient } from '@/lib/supabase/browser'
-import { publicEnv } from '@/lib/env'
+import { publicEnv } from '@/lib/env.public'
 
 /**
  * The codes the two auth routes can redirect here with -- /auth/confirm for

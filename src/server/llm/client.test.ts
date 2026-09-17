@@ -25,7 +25,7 @@ const getServerEnv = vi.fn<() => TestEnv>(() => ({
   OPENROUTER_API_KEY: 'sk-or-test',
   GEMINI_API_KEY: undefined,
 }))
-vi.mock('@/lib/env', () => ({ getServerEnv }))
+vi.mock('@/lib/env.server', () => ({ getServerEnv }))
 
 const schema = z.object({ tone: z.string() })
 

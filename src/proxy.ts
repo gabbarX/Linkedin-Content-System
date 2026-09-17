@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getPublicEnv, publicEnv } from '@/lib/env'
+import { getPublicEnv, publicEnv } from '@/lib/env.public'
 
 export async function proxy(request: NextRequest) {
   // No credentials configured: there is no session to refresh, and

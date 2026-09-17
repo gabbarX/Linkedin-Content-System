@@ -1,7 +1,7 @@
 import 'server-only'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { getServerEnv } from '@/lib/env'
+import { getServerEnv } from '@/lib/env.server'
 
 /**
  * The Prisma client.
