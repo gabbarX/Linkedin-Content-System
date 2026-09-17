@@ -24,11 +24,50 @@ Solo coach or consultant selling a high-ticket B2B service or program. One perso
 
 ### 1.2 Pricing
 
-Single SKU: **$49/month**, 14-day trial, card required.
+Single SKU: **₹1,499/month**, no trial, card required.
 
 One price means no plan gating, no usage metering, no credit ledger, no proration — an entire billing subsystem skipped. Estimated LLM cost is $2–6/user/month, absorbed with a soft rate limit. No free tier at launch.
 
-**Paywall position:** the user signs up, completes the interview, pastes writing samples, and receives their Voice Profile and full 12-week strategy for free. The card is required before any post is generated and before LinkedIn is connected. They have invested ten minutes and seen real output; LinkBud has spent a few cents on a stranger.
+**Paywall position:** the user signs up, completes the interview, pastes writing samples, and receives their **Voice Profile** for free. The card is required before the 12-week strategy is generated, and therefore before any post is generated and before LinkedIn is connected.
+
+*Amended 2026-09-17.* This row previously read "$49/month, 14-day trial", billed
+through Stripe, with the strategy also given away free. Three things changed
+together, and they are one decision, not three.
+
+**Provider: Stripe → Razorpay.** Stripe's India entity cannot onboard most new
+Indian businesses for domestic collection, and the product's first customers are
+reachable in INR. Razorpay Subscriptions gives UPI AutoPay, e-mandate and card
+mandates natively. See §3.
+
+**Trial: fourteen days → none.** A trial exists to buy confidence that the
+product works. Onboarding already does that — the user has pasted their own
+posts and read a Voice Profile derived from them before the card is asked for.
+A trial on top of that pays for a second proof of the same fact, and every
+trial-state transition is money code that has to be written, tested and
+maintained. Removing it deletes an entire state machine rather than simplifying
+one.
+
+**Gate position: after the strategy → before it.** The original rationale read
+"They have invested ten minutes and seen real output; LinkBud has spent a few
+cents on a stranger." Half of that still holds and half does not. The user has
+still seen real output — the Voice Profile is derived from their own samples by
+a real model call, shown in full, and editable at `/onboarding/voice` before
+any payment. What changed is the cost side: the strategy build is **six model
+calls**, measured at 27.7 s and by far the most expensive thing LinkBud does
+per user. Giving it away meant the marginal cost of a stranger who never
+intends to pay was the single largest line in the unit economics. The Voice
+Profile is one call; the strategy is six. The card now sits between them.
+
+The consequence for the onboarding state machine is that `paywall` moves ahead
+of `strategy`: `interview → samples → voice → paywall → strategy → done`.
+Every step except `done` now has a page, which retires the temporary exception
+recorded as Ruling R3.
+
+**Entitlement is not the same thing as onboarding progress.** Finishing the
+paywall step once is not a permanent grant — a mandate can be revoked and a
+card can fail. Access to the product surfaces is decided by the live
+subscription status on every request, independently of how far through
+onboarding the user has travelled. See §5.
 
 ---
 
@@ -69,7 +108,7 @@ Competitive note: Taplio, Supergrow, AuthoredUp and Kleo are **not** LinkedIn pa
 | Hosting | Vercel + Vercel Cron | Cron drives the job engine. No separate worker service. |
 | LLM | **Single gateway, two possible providers: Gemini or OpenRouter** | One module, one request shape, one bill. The provider is chosen by which key is set — Gemini first. Provider added 2026-09-17 — see the amendment below. |
 | Trends | Exa | Purpose-built for fresh, semantically filtered retrieval, and cheapest at this volume. Accessed through a `SearchProvider` interface so Tavily or Perplexity can be swapped in without touching `radar`. |
-| Billing | Stripe | Subscriptions + trial. |
+| Billing | **Razorpay** | Subscriptions, INR, no trial. Talked to over plain HTTP — no SDK. Provider changed 2026-09-17 — see the amendment below. |
 | Email | Resend | Approval nudges, trial reminders. |
 
 *Amended 2026-09-16, on the auth row:* email + password was added as a third
@@ -93,6 +132,26 @@ previous shortcut, a development-only bypass route, was deleted precisely
 because scaffolding that only works on one machine proves nothing about the
 product. Whether password sign-in is *offered prominently* at launch is a
 separate question, deliberately left open; the mechanism exists either way.
+
+*Amended 2026-09-17, on the billing row:* Stripe became Razorpay, and the
+subscription is INR with no trial (§1.2 carries the reasoning). Two things follow
+for the build.
+
+First, **no SDK.** Razorpay's API is HTTP Basic auth over JSON and its two
+signature checks are HMAC-SHA256, which `node:crypto` already provides. An
+official Node package exists; it would save roughly eighty lines of `fetch`
+wrapper and cost a runtime dependency and its transitive tree, on a solo
+project where every dependency is a lifetime maintenance cost. The wrapper is
+written here instead, in `src/server/billing/razorpay-client.ts`.
+
+Second, **the browser is never believed.** Razorpay Checkout hands the page a
+`razorpay_signature` on success. That signature is verified server-side with a
+timing-safe comparison — and then the subscription is re-fetched from Razorpay
+and its own reported status is what gets stored. The signature proves the
+message was not forged; only the re-fetch proves what Razorpay actually thinks
+is true. The webhook is a third, independent path to the same fact, so a
+browser that dies immediately after payment still results in an activated
+account.
 
 *Amended 2026-09-16, after Milestone 1:* this row read "Next.js 15" when the spec was approved. `create-next-app` scaffolded **16.3.5** at build time, which is what the branch ships; the version is recorded here so the spec and the code agree.
 
@@ -244,9 +303,25 @@ Core tables.
 | `outcome_reports` | Self-reported result per post |
 | `learnings` | text, category, confidence, source_signal, active |
 | `trend_items` | Radar output, per user, with relevance score and suggested angle |
-| `subscriptions` | Stripe customer, subscription, status, trial_end |
+| `subscriptions` | Razorpay subscription and plan ids, status, current period, cancel-at-cycle-end |
 
 LinkedIn access and refresh tokens are encrypted at rest. No LinkedIn-returned social content is persisted beyond 48 hours.
+
+*Amended 2026-09-17, on `subscriptions`.* This table breaks the RLS pattern every
+other table follows, deliberately. The others carry four policies scoped to
+`authenticated` — select, insert, update, delete, each keyed to
+`auth.uid() = user_id`. `subscriptions` carries **select only**. The anon key
+ships in the browser bundle and Supabase's Data API is reachable with it, so an
+insert or update policy on this table, however correctly scoped to the caller's
+own row, would let anyone who views source write `status = 'active'` onto their
+own subscription and take the product for free. There is no such thing as a
+safely self-writable entitlement row. Writes happen only through Prisma, which
+connects as a BYPASSRLS role; the three missing policies are the mechanism, not
+an omission.
+
+Entitlement is derived from `status`, never stored as a boolean. Razorpay owns
+the eight states a subscription can be in and a cached boolean is one webhook
+delivery away from being a lie.
 
 *Amended 2026-09-16, after Milestone 1:* the first row read `users`. The table is named **`profiles`** — a `public.users` sitting beside Supabase's own `auth.users` is a trap, and `supabase/migrations/0001_profiles.sql` creates `public.profiles`.
 
@@ -274,7 +349,7 @@ Explicitly banned: purple/indigo gradients, glassmorphism, neon on dark, emoji a
 
 **TDD is mandatory** for code where a silent bug costs money or credibility:
 
-- Stripe billing and trial state transitions
+- Razorpay billing: entitlement derivation, both signature verifications, and every webhook state transition
 - The LinkedIn adapter and token refresh
 - The job engine: claiming, backoff, retry, and idempotency
 - Attribution: short link resolution, click counting, deduplication
@@ -290,11 +365,11 @@ Explicitly banned: purple/indigo gradients, glassmorphism, neon on dark, emoji a
 
 | # | Milestone | Contents |
 |---|---|---|
-| 0 | Accounts | Incorporate, domain, business email, LinkedIn Page, LinkedIn App A (Share on LinkedIn), LinkedIn App B + CMA application filed, Stripe, Resend |
+| 0 | Accounts | Incorporate, domain, business email, LinkedIn Page, LinkedIn App A (Share on LinkedIn), LinkedIn App B + CMA application filed, Razorpay, Resend |
 | 1 | Foundation | Scaffold, Supabase schema + RLS, auth, app shell, design system |
 | 2 | Onboarding | **LLM gateway**, interview, sample paste, Voice Profile, Business Profile, both editable |
 | 3 | Strategy | Pillars, 12-week arc, dated slots at chosen cadence, calendar view |
-| 4 | Paywall | Stripe, trial, gating after strategy |
+| 4 | Paywall | Razorpay subscription (INR, no trial), gating **before** strategy |
 | 5 | Writer | Brief, 3 variants, editor with LinkedIn-accurate preview (gateway already built in M2) |
 | 6 | Jobs + Publisher | Jobs table, cron, Share on LinkedIn adapter, approve-then-publish, nudges |
 | 7 | Attribution | Short links, click log, outcome prompt |

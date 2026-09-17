@@ -19,7 +19,7 @@ LinkBud is a LinkedIn content system for solo B2B coaches and consultants: it le
 | Hosting | Vercel + Vercel Cron | Cron drives the job engine; no separate worker. |
 | LLM | One gateway, two possible providers: **Gemini** or OpenRouter | `src/server/llm/client.ts`. Picked by which key is set, Gemini first. Wired early — Milestones 2 and 3 need a model. See `docs/ACCOUNTS.md` §15b. |
 | Trends | Exa behind a `SearchProvider` interface | Not yet wired. Milestone 8. |
-| Billing | Stripe — single SKU, $49/mo, 14-day trial | No plans, no metering, no credits. |
+| Billing | Razorpay — single SKU, ₹1,499/mo, no trial | No plans, no metering, no credits, no SDK. Subscriptions over plain `fetch`; signatures via `node:crypto`. The card is required **before** the strategy is generated. |
 | Email | Resend | Approval nudges, trial reminders. |
 | Tests | Vitest (`environment: 'node'`, `src/**/*.test.ts`) | |
 
@@ -104,7 +104,7 @@ Kill any dev server you start, and never leave a `.env.local` behind.
 
 Write the failing test first, for code where a silent bug costs money or credibility:
 
-- Stripe billing and trial state transitions
+- Razorpay billing: entitlement derivation, both signature verifications, and every webhook state transition
 - The LinkedIn adapter and token refresh
 - The job engine: claiming, backoff, retry, **idempotency** (a retry must never double-post to a customer's feed — the highest-consequence invariant in the system)
 - Attribution: short-link resolution, click counting, deduplication
